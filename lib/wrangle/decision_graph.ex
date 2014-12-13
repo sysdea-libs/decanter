@@ -33,6 +33,8 @@ defmodule Wrangle.DecisionGraph do
       body
     end
 
+    # IO.inspect visit_nodes(env.module, entry_name, nodes, %{})
+
     serve = quote do
       def serve(var!(conn), opts) do
         var!(root) = unquote(entry_name)
@@ -42,6 +44,40 @@ defmodule Wrangle.DecisionGraph do
 
     [fn_bodies, serve]
   end
+
+  # defp visit_nodes(module, name, nodes, acc) do
+  #   case nodes[name] do
+  #     {:decision, consequent, alternate} ->
+  #       case Module.get_attribute(module, :decisions)[name] do
+  #         true -> visit_nodes(module, consequent, nodes, acc)
+  #         false -> visit_nodes(module, alternate, nodes, acc)
+  #         body ->
+  #           acc = visit_nodes(module, consequent, nodes, acc)
+  #           acc = visit_nodes(module, alternate, nodes, acc)
+  #           if acc[name] do
+  #             Map.put(acc, name, acc[name] + 1)
+  #           else
+  #             Map.put(acc, name, 1)
+  #           end
+  #       end
+  #     {:dispatch, conn_match, handles} ->
+  #       Enum.reduce(handles, acc, fn([_, branch], acc) ->
+  #         visit_nodes(module, branch, nodes, acc)
+  #       end)
+  #     {:handler, status, content} ->
+  #       if acc[name] do
+  #         Map.put(acc, name, acc[name] + 1)
+  #       else
+  #         Map.put(acc, name, 1)
+  #       end
+  #     {:action, next} ->
+  #       if acc[name] do
+  #         Map.put(acc, name, acc[name] + 1)
+  #       else
+  #         Map.put(acc, name, 1)
+  #       end
+  #   end
+  # end
 
   defp compile_decision(module, name, nodes, bodies) do
     if bodies[name] do
