@@ -7,12 +7,12 @@ defmodule Wrangle.DecisionGraph do
       @decisions %{}
       @handlers %{}
 
-      defp dispatch_decision(conn, result, consequent, alternate) do
+      defp handle_decision(conn, result) do
         case result do
-          true  -> do_decide(consequent, conn)
-          false -> do_decide(alternate, conn)
-          {true, assigns}  -> do_decide(consequent, %{conn | assigns: Map.merge(conn.assigns, assigns)})
-          {false, assigns} -> do_decide(alternate, %{conn | assigns: Map.merge(conn.assigns, assigns)})
+          true  -> {true, conn}
+          false -> {false, conn}
+          {true, assigns}  -> {true, %{conn | assigns: Map.merge(conn.assigns, assigns)}}
+          {false, assigns} -> {false, %{conn | assigns: Map.merge(conn.assigns, assigns)}}
         end
       end
 
@@ -26,14 +26,15 @@ defmodule Wrangle.DecisionGraph do
   defmacro __before_compile__(env) do
     nodes = Module.get_attribute(env.module, :nodes)
     {entry_name, entry_body} = Module.get_attribute(env.module, :entry_point)
-    {entry_name, r} = compile_decision(env.module, entry_name, nodes, %{})
+
+    counts = visit_nodes(env.module, entry_name, nodes, %{})
+
+    {entry_name, r} = compile_decision(env.module, entry_name, {counts, nodes}, %{})
     # IO.inspect {"done", root}
     fn_bodies = for {_, body} <- r do
       # IO.puts Macro.to_string(body)
       body
     end
-
-    # IO.inspect visit_nodes(env.module, entry_name, nodes, %{})
 
     serve = quote do
       def serve(var!(conn), opts) do
@@ -45,56 +46,79 @@ defmodule Wrangle.DecisionGraph do
     [fn_bodies, serve]
   end
 
-  # defp visit_nodes(module, name, nodes, acc) do
-  #   case nodes[name] do
-  #     {:decision, consequent, alternate} ->
-  #       case Module.get_attribute(module, :decisions)[name] do
-  #         true -> visit_nodes(module, consequent, nodes, acc)
-  #         false -> visit_nodes(module, alternate, nodes, acc)
-  #         body ->
-  #           acc = visit_nodes(module, consequent, nodes, acc)
-  #           acc = visit_nodes(module, alternate, nodes, acc)
-  #           if acc[name] do
-  #             Map.put(acc, name, acc[name] + 1)
-  #           else
-  #             Map.put(acc, name, 1)
-  #           end
-  #       end
-  #     {:dispatch, conn_match, handles} ->
-  #       Enum.reduce(handles, acc, fn([_, branch], acc) ->
-  #         visit_nodes(module, branch, nodes, acc)
-  #       end)
-  #     {:handler, status, content} ->
-  #       if acc[name] do
-  #         Map.put(acc, name, acc[name] + 1)
-  #       else
-  #         Map.put(acc, name, 1)
-  #       end
-  #     {:action, next} ->
-  #       if acc[name] do
-  #         Map.put(acc, name, acc[name] + 1)
-  #       else
-  #         Map.put(acc, name, 1)
-  #       end
-  #   end
-  # end
+  defp visit_nodes(module, name, nodes, acc) do
+    case nodes[name] do
+      {:decision, consequent, alternate} ->
+        case Module.get_attribute(module, :decisions)[name] do
+          true -> visit_nodes(module, consequent, nodes, acc)
+          false -> visit_nodes(module, alternate, nodes, acc)
+          body ->
+            acc = visit_nodes(module, consequent, nodes, acc)
+            acc = visit_nodes(module, alternate, nodes, acc)
+            if acc[name] do
+              Map.put(acc, name, acc[name] + 1)
+            else
+              Map.put(acc, name, 1)
+            end
+        end
+      {:dispatch, conn_match, handles} ->
+        Enum.reduce(handles, acc, fn([_, branch], acc) ->
+          visit_nodes(module, branch, nodes, acc)
+        end)
+      {:handler, status, content} ->
+        if acc[name] do
+          Map.put(acc, name, acc[name] + 1)
+        else
+          Map.put(acc, name, 1)
+        end
+      {:action, next} ->
+        if acc[name] do
+          Map.put(acc, name, acc[name] + 1)
+        else
+          Map.put(acc, name, 1)
+        end
+    end
+  end
 
-  defp compile_decision(module, name, nodes, bodies) do
+  defp compile_decision(module, name, {counts, nodes}=cnodes, bodies) do
     if bodies[name] do
       {name, bodies}
     else
       case nodes[name] do
         {:decision, consequent, alternate} ->
           case Module.get_attribute(module, :decisions)[name] do
-            true -> compile_decision(module, consequent, nodes, bodies)
-            false -> compile_decision(module, alternate, nodes, bodies)
+            true -> compile_decision(module, consequent, cnodes, bodies)
+            false -> compile_decision(module, alternate, cnodes, bodies)
             body ->
-              {consequent, bodies} = compile_decision(module, consequent, nodes, bodies)
-              {alternate, bodies} = compile_decision(module, alternate, nodes, bodies)
+              {consequent, bodies} = compile_decision(module, consequent, cnodes, bodies)
+              {alternate, bodies} = compile_decision(module, alternate, cnodes, bodies)
+
+              if counts[name] == counts[consequent] do
+                {:defp, _, [{:do_decide, _, _},[{:do, x}]]} = bodies[consequent]
+                consequent_body = x
+                bodies = Map.delete(bodies, consequent)
+              else
+                consequent_body = quote do
+                  do_decide(unquote(consequent), var!(conn))
+                end
+              end
+
+              if counts[name] == counts[alternate] do
+                {:defp, _, [{:do_decide, _, _},[{:do, x}]]} = bodies[alternate]
+                alternate_body = x
+                bodies = Map.delete(bodies, alternate)
+              else
+                alternate_body = quote do
+                  do_decide(unquote(alternate), var!(conn))
+                end
+              end
 
               body = quote location: :keep do
                 defp do_decide(unquote(name), var!(conn)) do
-                  dispatch_decision(var!(conn), unquote(body), unquote(consequent), unquote(alternate))
+                  case handle_decision(var!(conn), unquote(body)) do
+                    {true, var!(conn)} -> unquote(consequent_body)
+                    {false, var!(conn)} -> unquote(alternate_body)
+                  end
                 end
               end
 
@@ -102,7 +126,7 @@ defmodule Wrangle.DecisionGraph do
             end
         {:dispatch, conn_match, cases} ->
           {handles, bodies} = Enum.map_reduce(cases, bodies, fn ([match, branch], bodies) ->
-            {branch, bodies} = compile_decision(module, branch, nodes, bodies)
+            {branch, bodies} = compile_decision(module, branch, cnodes, bodies)
             c = quote do
               unquote(match) -> unquote(branch)
             end
@@ -147,7 +171,7 @@ defmodule Wrangle.DecisionGraph do
 
           {name, Map.put(bodies, name, body)}
         {:action, next} ->
-          {next, bodies} = compile_decision(module, next, nodes, bodies)
+          {next, bodies} = compile_decision(module, next, cnodes, bodies)
 
           body = quote location: :keep do
             defp do_decide(unquote(name), var!(conn)) do
