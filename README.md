@@ -4,11 +4,13 @@ Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, ex
 
 ## Status
 
-Primordial
+Experimental
 
 ## Why not just wrap cowboy_rest/webmachine?
 
-Elixir can (theoretically) offer higher performance through macros, allowing it to inspect the defined Resource module and elide unused/defaulted decision points, such that the decision graph for each Resource is compiled from the definition. Cowboy_rest and webmachine are also both specific to their respective adapters, while Wrangle sits on top of Plug, so can support whichever adapters Plug supports.
+`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Wrangle sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
+
+Wrangle can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
 
 ## What about Phoenix?
 
@@ -53,3 +55,11 @@ defmodule HelloResource do
   end
 end
 ```
+
+## TODO
+
+- [x] Inline unique decision paths.
+- [ ] Detect allowed_methods from action definitions?
+- [ ] AOT analyse static properties rather than parsing on each request?
+- [ ] Complete test suite.
+- [ ] Documentation.
