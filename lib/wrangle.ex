@@ -104,7 +104,7 @@ defmodule Wrangle do
             lmdate = Timex.Date.from(last_modified)
             case Timex.Date.diff(var!(conn).assigns[:if_modified_since_date], lmdate, :secs) do
               0 -> false
-              _ -> {true, %{last_modified: lmdate}}
+              _ -> {true, %{last_modified: last_modified}}
             end
         end
       end
@@ -127,7 +127,7 @@ defmodule Wrangle do
           last_modified ->
             lmdate = Timex.Date.from(last_modified)
             case Timex.Date.diff(var!(conn).assigns[:if_unmodified_since_date], lmdate, :secs) do
-              0 -> {false, %{last_modified: lmdate}}
+              0 -> {false, %{last_modified: last_modified}}
               _ -> true
             end
         end
@@ -248,11 +248,11 @@ defmodule Wrangle do
           var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
         })
 
-        if etag = gen_etag(conn) do
+        if etag = conn.assigns[:etag] || gen_etag(conn) do
           conn = put_resp_header(conn, "ETag", etag)
         end
 
-        if lm = gen_last_modified(conn) do
+        if lm = conn.assigns[:last_modified] || gen_last_modified(conn) do
           conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
         end
 
