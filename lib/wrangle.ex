@@ -92,12 +92,15 @@ defmodule Wrangle do
       decision :method_put?, :put_to_different_url?, :existed?
       decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?
       decision :if_none_match?, :handle_not_modified, :handle_precondition_failed
-      decision :put_to_existing?, :conflict?, :multiple_representations?
-      decision :post_to_existing?, :post!, :put_to_existing?
       decision :delete_enacted?, :respond_with_entity?, :handle_accepted
-      decision :method_patch?, :patch!, :post_to_existing?
-      decision :method_delete?, :delete!, :method_patch?
-      decision :modified_since?, :method_delete?, :handle_not_modified do
+      dispatch :dispatch_on_method, var!(conn).method, [
+        ["DELETE", :delete!],
+        ["PATCH", :patch!],
+        ["POST", :post!],
+        ["PUT", :conflict?],
+        ["GET", :multiple_representations?]
+      ]
+      decision :modified_since?, :dispatch_on_method, :handle_not_modified do
         case gen_last_modified(var!(conn)) do
           nil -> true
           last_modified ->
@@ -108,13 +111,13 @@ defmodule Wrangle do
             end
         end
       end
-      decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
+      decision :if_modified_since_valid_date?, :modified_since?, :dispatch_on_method do
         case Timex.DateFormat.parse(var!(conn).assigns.headers["if-modified-since"], "{RFC1123}") do
           {:ok, date} -> {true, %{if_modified_since_date: date}}
           _ -> false
         end
       end
-      decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
+      decision :if_modified_since_exists?, :if_modified_since_valid_date?, :dispatch_on_method
       decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
         etag = gen_etag(var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
@@ -230,13 +233,9 @@ defmodule Wrangle do
       decide :if_none_match_star?, do: var!(conn).assigns.headers["if-none-match"] == "*"
       decide :if_unmodified_since_exists?, do: has_header(var!(conn), "if-unmodified-since")
       decide :is_options?, do: var!(conn).method == "OPTIONS"
-      decide :method_delete?, do: var!(conn).method == "DELETE"
-      decide :method_patch?, do: var!(conn).method == "PATCH"
       decide :method_put?, do: var!(conn).method == "PUT"
       decide :post_to_gone?, do: var!(conn).method == "POST"
-      decide :post_to_existing?, do: var!(conn).method == "POST"
       decide :post_to_missing?, do: var!(conn).method == "POST"
-      decide :put_to_existing?, do: var!(conn).method == "PUT"
 
       # entry handler
 

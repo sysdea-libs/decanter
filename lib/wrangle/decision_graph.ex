@@ -64,6 +64,24 @@ defmodule Wrangle.DecisionGraph do
 
               {name, Map.put(bodies, name, body)}
             end
+        {:dispatch, conn_match, cases} ->
+          {handles, bodies} = Enum.map_reduce(cases, bodies, fn ([match, branch], bodies) ->
+            {branch, bodies} = compile_decision(module, branch, nodes, bodies)
+            c = quote do
+              unquote(match) -> unquote(branch)
+            end
+            {c, bodies}
+          end)
+
+          body = quote location: :keep do
+            defp do_decide(unquote(name), var!(conn)) do
+              do_decide(case unquote(conn_match) do
+                unquote(handles |> List.flatten)
+              end, var!(conn))
+            end
+          end
+
+          {name, Map.put(bodies, name, body)}
         {:handler, status, content} ->
           handlers = Module.get_attribute(module, :handlers)
 
@@ -123,6 +141,14 @@ defmodule Wrangle.DecisionGraph do
   defmacro handler(name, status, content) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:handler, unquote(status), unquote(content)})
+    end
+  end
+
+  defmacro dispatch(name, conn_match, mapping) do
+    quote do
+      @nodes Map.put(@nodes, unquote(name),
+                      {:dispatch, unquote(Macro.escape(conn_match, unquote: true)),
+                                  unquote(Macro.escape(mapping, unquote: true))})
     end
   end
 
