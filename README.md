@@ -16,7 +16,7 @@ Phoenix handles some of the format negotiation/body encoding issues, so the idea
 
 ## Example
 
-Rudimentary example, as the port is currently very direct, and not yet adapted to be more Elixir-like in use.
+Port is still fairly direct, so the following is likely to improve:
 
 ```elixir
 defmodule HelloResource do
@@ -27,8 +27,8 @@ defmodule HelloResource do
   def etag(_conn), do: 1635
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
-  def available_media_types, do: ["text/html", "application/json"]
-  def allowed_methods, do: ["POST", "GET"]
+  @available_media_types ["text/html", "application/json"]
+  @allowed_methods ["POST", "GET"] # would be nice to auto-detect this
 
   handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "<h1>HELLO</h1>"
@@ -38,34 +38,6 @@ defmodule HelloResource do
     ~s({"message": "HELLO"})
   end
 
-  def post!(conn) do
-    # MyRepo.update(...)
-  end
-end
-```
-
-A possible adaptation would be:
-
-```elixir
-defmodule HelloResource do
-  use Wrangle
-
-  plug :serve
-
-  @media_types ["text/html", "application/json"]
-
-  def etag(_conn), do: 1635
-  def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
-
-  handle :ok, %{media_type: "text/html"} do
-    "<h1>HELLO</h1>"
-  end
-
-  handle :ok, %{media_type: "application/json"} do
-    ~s({"message": "HELLO"})
-  end
-
-  # Auto detect POST allowed?
   def post!(conn) do
     # MyRepo.update(...)
   end

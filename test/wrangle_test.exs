@@ -7,7 +7,7 @@ defmodule WrangleTest.R do
     1635
   end
 
-  def available_media_types, do: ["text/html", "application/json"]
+  @available_media_types ["text/html", "application/json"]
 
   handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "HELLO"

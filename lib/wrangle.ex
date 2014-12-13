@@ -151,31 +151,31 @@ defmodule Wrangle do
       decision :encoding_available?, :processable?, :handle_not_acceptable do
         encoding = ConNeg.find_best(:encoding,
                                     var!(conn).assigns.headers["accept-encoding"],
-                                    available_encodings) || "identity"
+                                    @available_encodings) || "identity"
         {true, %{encoding: encoding}}
       end
       decision :accept_encoding_exists?, :encoding_available?, :processable?
       decision :charset_available?, :accept_encoding_exists?, :handle_not_acceptable do
-        charset = ConNeg.find_best(:charset, var!(conn).assigns.headers["accept-charset"], available_charsets)
+        charset = ConNeg.find_best(:charset, var!(conn).assigns.headers["accept-charset"], @available_charsets)
         {!is_nil(charset), %{charset: charset}}
       end
       decision :accept_charset_exists?, :charset_available?, :accept_encoding_exists?
       decision :language_available?, :accept_charset_exists?, :handle_not_acceptable do
         language = ConNeg.find_best(:language,
                                     var!(conn).assigns.headers["accept-language"],
-                                    available_languages)
+                                    @available_languages)
         {!is_nil(language), %{language: language}}
       end
       decision :accept_language_exists?, :language_available?, :accept_charset_exists?
       decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
-        type = ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], available_media_types)
+        type = ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], @available_media_types)
         {!is_nil(type), %{media_type: type}}
       end
       decision :accept_exists?, :media_type_available?, :accept_language_exists? do
         if var!(conn).assigns.headers["accept"] do
           true
         else
-          {false, %{media_type: ConNeg.find_best(:accept, "*/*", available_media_types)}}
+          {false, %{media_type: ConNeg.find_best(:accept, "*/*", @available_media_types)}}
         end
       end
       decision :is_options?, :handle_options, :accept_exists?
@@ -201,9 +201,9 @@ defmodule Wrangle do
       decide :existed?, do: false
       decide :exists?, do: true
       decide :known_content_type?, do: true
-      decide :known_method?, do: var!(conn).method in known_methods
+      decide :known_method?, do: var!(conn).method in @known_methods
       decide :malformed?, do: false
-      decide :method_allowed?, do: var!(conn).method in allowed_methods
+      decide :method_allowed?, do: var!(conn).method in @allowed_methods
       decide :moved_permanently?, do: false
       decide :moved_temporarily?, do: false
       decide :multiple_representations?, do: false
@@ -277,12 +277,12 @@ defmodule Wrangle do
 
       # static properties
 
-      def available_media_types, do: ["text/html"]
-      def available_charsets, do: ["utf-8"]
-      def available_encodings, do: ["identity"]
-      def available_languages, do: ["*"]
-      def allowed_methods, do: ["POST", "GET"]
-      def known_methods, do: ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
+      @available_media_types ["text/html"]
+      @available_charsets ["utf-8"]
+      @available_encodings ["identity"]
+      @available_languages ["*"]
+      @allowed_methods ["POST", "GET"]
+      @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 
       # dynamic properties
 
@@ -291,13 +291,7 @@ defmodule Wrangle do
 
       # overrides
 
-      defoverridable [available_media_types: 0,
-                      available_charsets: 0,
-                      available_encodings: 0,
-                      available_languages: 0,
-                      allowed_methods: 0,
-                      known_methods: 0,
-                      last_modified: 1,
+      defoverridable [last_modified: 1,
                       etag: 1]
     end
   end
