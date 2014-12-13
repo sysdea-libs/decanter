@@ -48,14 +48,8 @@ defmodule Wrangle.DecisionGraph do
       {name, bodies}
     else
       case nodes[name] do
-        {:decision, consequent, alternate, body} ->
-          decisions = Module.get_attribute(module, :decisions)
-
-          if Map.has_key?(decisions, name) do
-            body = decisions[name]
-          end
-
-          case body do
+        {:decision, consequent, alternate} ->
+          case Module.get_attribute(module, :decisions)[name] do
             true -> compile_decision(module, consequent, nodes, bodies)
             false -> compile_decision(module, alternate, nodes, bodies)
             body ->
@@ -112,10 +106,17 @@ defmodule Wrangle.DecisionGraph do
     end
   end
 
+  defmacro decision(name, consequent, alternate) do
+    quote do
+      @nodes Map.put(@nodes, unquote(name), {:decision, unquote(consequent), unquote(alternate)})
+    end
+  end
+
   defmacro decision(name, consequent, alternate, args) do
     quote do
-      @nodes Map.put(@nodes, unquote(name),
-        {:decision, unquote(consequent), unquote(alternate), unquote(Macro.escape(args[:do], unquote: true)) })
+      @decisions Map.put(@decisions, unquote(name),
+                                     unquote(Macro.escape(args[:do], unquote: true)))
+      @nodes Map.put(@nodes, unquote(name), {:decision, unquote(consequent), unquote(alternate)})
     end
   end
 
