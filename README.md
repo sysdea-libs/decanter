@@ -28,6 +28,7 @@ defmodule HelloResource do
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
   def available_media_types, do: ["text/html", "application/json"]
+  def allowed_methods, do: ["POST", "GET"]
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}) do
     "<h1>HELLO</h1>"
@@ -35,6 +36,10 @@ defmodule HelloResource do
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "application/json"}}) do
     ~s({"message": "HELLO"})
+  end
+
+  def post!(conn) do
+    # MyRepo.update(...)
   end
 end
 ```
@@ -52,12 +57,17 @@ defmodule HelloResource do
   def etag(_conn), do: 1635
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
-  def handle(:ok, _conn, %{media_type: "text/html"}) do
+  handle :ok, %{media_type: "text/html"} do
     "<h1>HELLO</h1>"
   end
 
-  def handle(:ok, _conn, %{media_type: "application/json"}) do
+  handle :ok, %{media_type: "application/json"} do
     ~s({"message": "HELLO"})
+  end
+
+  # Auto detect POST allowed?
+  def post!(conn) do
+    # MyRepo.update(...)
   end
 end
 ```
