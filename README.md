@@ -22,14 +22,23 @@ Port is still fairly direct, so the following is likely to improve:
 defmodule HelloResource do
   use Wrangle
 
+  plug :fetch_session
   plug :serve
 
-  def etag(_conn), do: 1635
-  def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
-
+  # static properties
   @available_media_types ["text/html", "application/json"]
   @allowed_methods ["POST", "GET"] # would be nice to auto-detect this
 
+  # dynamic properties
+  def etag(_conn), do: 1635
+  def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
+
+  # decision points
+  decide :authorized? do
+    Map.has_key?(conn.assigns, [:user])
+  end
+
+  # handlers
   handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "<h1>HELLO</h1>"
   end
@@ -38,6 +47,7 @@ defmodule HelloResource do
     ~s({"message": "HELLO"})
   end
 
+  # actions
   def post!(conn) do
     # MyRepo.update(...)
   end
