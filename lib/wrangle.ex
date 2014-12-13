@@ -288,10 +288,21 @@ defmodule Wrangle do
       def last_modified(_conn) do nil end
       def etag(_conn) do nil end
 
+      # actions
+
+      defp delete!(conn) do end
+      defp post!(conn) do end
+      defp put!(conn) do end
+      defp patch!(conn) do end
+
       # overrides
 
       defoverridable [last_modified: 1,
-                      etag: 1]
+                      etag: 1,
+                      delete!: 1,
+                      post!: 1,
+                      put!: 1,
+                      patch!: 1]
     end
   end
 end

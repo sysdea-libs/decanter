@@ -15,11 +15,6 @@ defmodule Wrangle.DecisionGraph do
           {false, assigns} -> {false, %{conn | assigns: Map.merge(conn.assigns, assigns)}}
         end
       end
-
-      defp delete!(conn) do end
-      defp post!(conn) do end
-      defp put!(conn) do end
-      defp patch!(conn) do end
     end
   end
 
