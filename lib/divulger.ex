@@ -1,9 +1,9 @@
 defmodule Divulger do
-  import Divulger.Builder
-  require Divulger.ConnectionNegotiator, as: ConNeg
-
   defmacro __using__(_) do
     quote location: :keep do
+      use Divulger.DecisionGraph
+      require Divulger.ConnectionNegotiator, as: ConNeg
+
       use Plug.Builder
       @behaviour Plug
 
@@ -11,14 +11,24 @@ defmodule Divulger do
         opts
       end
 
-      def serve(conn, opts) do
-        mapped_headers = Enum.into(conn.req_headers, %{})
-        decide(:service_available?, %{
-          conn | assigns: Map.merge(conn.assigns, %{headers: mapped_headers})
-        })
+      # default generators
+
+      defp gen_last_modified(conn) do
+        case last_modified(conn) do
+          nil -> nil
+          lm -> lm
+        end
+      end
+
+      defp gen_etag(conn) do
+        case etag(conn) do
+          nil -> nil
+          etag -> "\"#{to_string(etag)}\""
+        end
       end
 
       # handlers
+
       handler :handle_ok, 200, "OK"
       handler :handle_options, 200, ""
       handler :handle_created, 201, ""
@@ -50,270 +60,246 @@ defmodule Divulger do
       handler :handle_unknown_method, 501, "Unknown method."
       handler :handle_service_not_available, 503, "Service not available."
 
-
-      decision :multiple_representations?, :handle_multiple_representations, :handle_ok
-      decision :respond_with_entity?, :multiple_representations?, :handle_no_content
-      decision :new?, :handle_created, :respond_with_entity?
-      decision :post_redirect?, :handle_see_other, :new?
-
-      decision :can_post_to_missing?, :post!, :handle_not_found
-      decision :post_to_missing?, &(&1.method == "POST"), :can_post_to_missing?, :handle_not_found
-      decision :can_post_to_gone?, :post!, :handle_gone
-
-      decision :post_to_gone?, &(&1.method == "POST"), :can_post_to_gone?, :handle_not_found
-
-      decision :moved_temporarily?, :handle_moved_temporarily, :post_to_gone?
-      decision :moved_permanently?, :handle_moved_permanently, :moved_temporarily?
-      decision :existed?, :moved_permanently, :post_to_missing?
-
-      decision :conflict?, :handle_conflict, :put!
-
-      decision :can_put_to_missing?, :conflict?, :handle_not_implemented
-      decision :put_to_different_url?, :handle_moved_permanently, :can_put_to_missing?
-
-      decision :method_put?, &(&1.method == "PUT"), :put_to_different_url?, :existed?
-
-      decision :if_match_star_exists_for_missing?, &(&1.assigns.headers["if-match"] == "*"),
-                                                   :handle_precondition_failed, :method_put?
-
-      decision :if_none_match?, &(&1.method in ["GET", "HEAD"]),
-                                :handle_not_modified, :handle_precondition_failed
-      decision :put_to_existing?, &(&1.method == "PUT"),
-                                  :conflict?, :multiple_representations?
-      decision :post_to_existing?, &(&1.method == "POST"),
-                                   :post!, :put_to_existing?
-
-      decision :delete_enacted?, :respond_with_entity?, :handle_accepted
-
-      decision :method_patch?, &(&1.method == "PATCH"), :patch!, :post_to_existing?
-      decision :method_delete?, &(&1.method == "DELETE"), :delete!, :method_patch?
-
-      defp gen_last_modified(conn) do
-        case last_modified(conn) do
-          nil -> nil
-          lm -> lm
-        end
-      end
-
-      defp gen_etag(conn) do
-        case etag(conn) do
-          false -> nil
-          etag -> "\"#{to_string(etag)}\""
-        end
-      end
-
-      defp do_modified_since(conn) do
-        case gen_last_modified(conn) do
-          nil -> true
-          last_modified ->
-            lmdate = Timex.Date.from(last_modified)
-            case Timex.Date.diff(conn.assigns[:if_modified_since_date], lmdate, :secs) do
-              0 -> false
-              _ -> {true, %{last_modified: lmdate}}
-            end
-        end
-      end
-
-      decision :modified_since?, :do_modified_since, :method_delete?, :handle_not_modified
-
-      defp do_if_modified_since_valid_date(conn) do
-        case Timex.DateFormat.parse(conn.assigns.headers["if-modified-since"], "{RFC1123}") do
-          {:ok, date} -> {true, %{if_modified_since_date: date}}
-          _ -> false
-        end
-      end
-
-      decision :if_modified_since_valid_date?, :do_if_modified_since_valid_date,
-                                               :modified_since?, :method_delete?
-
-      decision :if_modified_since_exists?, &(Map.has_key? &1.assigns.headers, "if-modified-since"),
-                                           :if_modified_since_valid_date?, :method_delete?
-
-      defp do_etag_matches_for_if_none(conn) do
-        etag = gen_etag(conn)
-        {etag == conn.assigns.headers["if-none-match"], %{etag: etag}}
-      end
-
-      decision :etag_matches_for_if_none?, :do_etag_matches_for_if_none,
-                                           :if_none_match?, :if_modified_since_exists?
-
-      decision :if_none_match_star?, &(&1.assigns.headers["if-none-match"] == "*"),
-                                     :if_none_match?, :etag_matches_for_if_none?
-
-      decision :if_none_match_exists?, &(Map.has_key? &1.assigns.headers, "if-none-match"),
-                                       :if_none_match_star?, :if_modified_since_exists?
-
-      defp do_unmodified_since(conn) do
-        case gen_last_modified(conn) do
-          nil -> true
-          last_modified ->
-            lmdate = Timex.Date.from(last_modified)
-            case Timex.Date.diff(conn.assigns[:if_unmodified_since_date], lmdate, :secs) do
-              0 -> {false, %{last_modified: lmdate}}
-              _ -> true
-            end
-        end
-      end
-
-      decision :unmodified_since?, :do_unmodified_since,
-                                   :handle_precondition_failed, :if_none_match_exists
-
-      defp do_if_unmodified_since_valid_date(conn) do
-        case Timex.DateFormat.parse(conn.assigns.headers["if-unmodified-since"], "{RFC1123}") do
-          {:ok, date} -> {true, %{if_unmodified_since_date: date}}
-          _ -> false
-        end
-      end
-
-      decision :if_unmodified_since_valid_date?, :do_if_unmodified_since_valid_date,
-                                                 :unmodified_since?, :if_none_match_exists?
-
-      decision :if_unmodified_since_exists?, &(Map.has_key? &1.assigns.headers, "if-unmodified-since"),
-                                             :if_unmodified_since_valid_date?, :if_none_match_exists?
-
-      defp do_etag_matches_for_if_match(conn) do
-        etag = gen_etag(conn)
-        {etag == conn.assigns.headers["if-match"], %{etag: etag}}
-      end
-
-      decision :etag_matches_for_if_match?, :do_etag_matches_for_if_match,
-                                            :if_unmodified_since_exists?, :handle_precondition_failed
-
-      decision :if_match_star?, &(&1.assigns.headers["if-match"] == "*"),
-                                :if_unmodified_since_exists?, :etag_matches_for_if_match?
-
-      decision :if_match_exists?, &(Map.has_key? &1.assigns.headers, "if-match"),
-                                  :if_match_star?, :if_unmodified_since_exists?
-
-      decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
-
-      decision :processable?, :exists?, :handle_unprocessable_entity
-
-      # TODO: not right treatment of identity when identity;q=0
-      defp do_encoding_available(conn) do
-        encoding = ConNeg.find_best(:encoding,
-                                    conn.assigns.headers["accept-encoding"],
-                                    available_encodings) || "identity"
-        {true, %{encoding: encoding}}
-      end
-
-      decision :encoding_available?, :do_encoding_available,
-                                     :processable?, :handle_not_acceptable
-
-      decision :accept_encoding_exists?, &(Map.has_key? &1.assigns.headers, "accept-encoding"),
-                                         :encoding_available?, :processable?
-
-      defp do_charset_available(conn) do
-        charset = ConNeg.find_best(:charset, conn.assigns.headers["accept-charset"], available_charsets)
-        {!is_nil(charset), %{charset: charset}}
-      end
-
-      decision :charset_available?, :do_charset_available,
-                                    :accept_encoding_exists?, :handle_not_acceptable
-
-      decision :accept_charset_exists?, &(Map.has_key? &1.assigns.headers, "accept-charset"),
-                                        :charset_available?, :accept_encoding_exists?
-
-      defp do_language_available(conn) do
-        language = ConNeg.find_best(:language,
-                                    conn.assigns.headers["accept-language"],
-                                    available_languages)
-        {!is_nil(language), %{language: language}}
-      end
-
-      decision :language_available?, :do_language_available,
-                                     :accept_charset_exists?, :handle_not_acceptable
-
-      decision :accept_language_exists?, &(Map.has_key? &1.assigns.headers, "accept-language"),
-                                         :language_available?, :accept_charset_exists?
-
-      defp do_negotiate_media_type(conn) do
-        type = ConNeg.find_best(:accept, conn.assigns.headers["accept"], available_media_types)
-        {!is_nil(type), %{media_type: type}}
-      end
-
-      decision :media_type_available?, :do_negotiate_media_type,
-                                       :accept_language_exists?, :handle_not_acceptable
-
-      defp do_accept_exists(conn) do
-        if conn.assigns.headers["accept"] do
-          true
-        else
-          {false, %{media_type: ConNeg.find_best(:accept, "*/*", available_media_types)}}
-        end
-      end
-
-      decision :accept_exists?, :do_accept_exists,
-                                :media_type_available?, :accept_language_exists?
-
-      decision :is_options?, &(&1.method == "OPTIONS"), :handle_options, :accept_exists?
-      decision :valid_entity_length?, :is_options?, :handle_request_entity_too_large
-      decision :known_content_type?, :valid_entity_length?, :handle_unsupported_media_type
-      decision :valid_content_header?, :known_content_type?, :handle_not_implemented
-      decision :allowed?, :valid_content_header?, :handle_forbidden
-      decision :authorized?, :allowed?, :handle_unauthorized
-      decision :malformed?, :handle_malformed, :authorized?
-      decision :method_allowed?, :malformed?, :handle_method_not_allowed
-      decision :uri_too_long?, :handle_uri_too_long, :method_allowed?
-      decision :known_method?, :uri_too_long?, :handle_unknown_method
-      decision :service_available?, :known_method?, :handle_service_not_available
+      # actions
 
       action :post!, :post_redirect?
       action :patch!, :respond_with_entity?
       action :put!, :new?
       action :delete!, :delete_enacted?
 
-      # default implementations
-      default_bool :service_available?, true
+      # decision graph
 
-      def known_methods, do: ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
-      def known_method?(conn), do: conn.method in known_methods
+      decision :multiple_representations?, :handle_multiple_representations,
+                                           :handle_ok,
+                                           do: false
 
-      default_bool :uri_too_long?, false
+      decision :respond_with_entity?, :multiple_representations?,
+                                      :handle_no_content,
+                                      do: false
 
-      def allowed_methods, do: ["POST", "GET"]
-      defp method_allowed?(conn), do: conn.method in allowed_methods
+      decision :new?, :handle_created, :respond_with_entity?, do: true
+      decision :post_redirect?, :handle_see_other, :new?, do: false
 
-      default_bool :malformed?,                false
-      default_bool :authorized?,               true
-      default_bool :allowed?,                  true
-      default_bool :valid_content_header?,     true
-      default_bool :known_content_type?,       true
-      default_bool :valid_entity_length?,      true
-      default_bool :exists?,                   true
-      default_bool :existed?,                  false
-      default_bool :respond_with_entity?,      false
-      default_bool :new?,                      true
-      default_bool :post_redirect?,            false
-      default_bool :put_to_different_url?,     false
-      default_bool :multiple_representations?, false
-      default_bool :conflict?,                 false
-      default_bool :can_post_to_missing?,      true
-      default_bool :can_put_to_missing?,       true
-      default_bool :can_post_to_gone?,         false
-      default_bool :moved_permanently?,        false
-      default_bool :moved_temporarily?,        false
-      default_bool :delete_enacted?,           true
-      default_bool :processable?,              true
+      decision :can_post_to_missing?, :post!, :handle_not_found, do: true
+
+      decision :post_to_missing?, :can_post_to_missing?,
+                                  :handle_not_found, do: var!(conn).method == "POST"
+
+      decision :can_post_to_gone?, :post!, :handle_gone, do: true
+
+      decision :post_to_gone?, :can_post_to_gone?, :handle_not_found, do: var!(conn).method == "POST"
+
+      decision :moved_temporarily?, :handle_moved_temporarily, :post_to_gone?, do: false
+      decision :moved_permanently?, :handle_moved_permanently, :moved_temporarily?, do: false
+      decision :existed?, :moved_permanently?, :post_to_missing?, do: false
+
+      decision :conflict?, :handle_conflict, :put!, do: false
+
+      decision :can_put_to_missing?, :conflict?, :handle_not_implemented, do: true
+      decision :put_to_different_url?, :handle_moved_permanently, :can_put_to_missing?, do: false
+
+      decision :method_put?, :put_to_different_url?, :existed?, do: var!(conn).method == "PUT"
+
+      decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?,
+                                                   do: var!(conn).assigns.headers["if-match"] == "*"
+
+      decision :if_none_match?, :handle_not_modified, :handle_precondition_failed,
+                                do: var!(conn).method in ["GET", "HEAD"]
+      decision :put_to_existing?, :conflict?, :multiple_representations?,
+                                  do: var!(conn).method == "PUT"
+      decision :post_to_existing?, :post!, :put_to_existing?,
+                                   do: var!(conn).method == "POST"
+
+      decision :delete_enacted?, :respond_with_entity?, :handle_accepted, do: true
+
+      decision :method_patch?, :patch!, :post_to_existing?, do: var!(conn).method == "PATCH"
+      decision :method_delete?, :delete!, :method_patch?, do: var!(conn).method == "DELETE"
+
+      decision :modified_since?, :method_delete?, :handle_not_modified do
+        case gen_last_modified(var!(conn)) do
+          nil -> true
+          last_modified ->
+            lmdate = Timex.Date.from(last_modified)
+            case Timex.Date.diff(var!(conn).assigns[:if_modified_since_date], lmdate, :secs) do
+              0 -> false
+              _ -> {true, %{last_modified: lmdate}}
+            end
+        end
+      end
+
+      decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
+        case Timex.DateFormat.parse(var!(conn).assigns.headers["if-modified-since"], "{RFC1123}") do
+          {:ok, date} -> {true, %{if_modified_since_date: date}}
+          _ -> false
+        end
+      end
+
+      decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete? do
+        Map.has_key?(var!(conn).assigns.headers, "if-modified-since")
+      end
+
+      decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
+        etag = gen_etag(var!(conn))
+        {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
+      end
+
+      decision :if_none_match_star?, :if_none_match?, :etag_matches_for_if_none? do
+        var!(conn).assigns.headers["if-none-match"] == "*"
+      end
+
+      decision :if_none_match_exists?, :if_none_match_star?, :if_modified_since_exists? do
+        Map.has_key?(var!(conn).assigns.headers, "if-none-match")
+      end
+
+      decision :unmodified_since?, :handle_precondition_failed, :if_none_match_exists? do
+        case gen_last_modified(var!(conn)) do
+          nil -> true
+          last_modified ->
+            lmdate = Timex.Date.from(last_modified)
+            case Timex.Date.diff(var!(conn).assigns[:if_unmodified_since_date], lmdate, :secs) do
+              0 -> {false, %{last_modified: lmdate}}
+              _ -> true
+            end
+        end
+      end
+
+      decision :if_unmodified_since_valid_date?, :unmodified_since?, :if_none_match_exists? do
+        case Timex.DateFormat.parse(var!(conn).assigns.headers["if-unmodified-since"], "{RFC1123}") do
+          {:ok, date} -> {true, %{if_unmodified_since_date: date}}
+          _ -> false
+        end
+      end
+
+      decision :if_unmodified_since_exists?, :if_unmodified_since_valid_date?, :if_none_match_exists? do
+        Map.has_key?(var!(conn).assigns.headers, "if-unmodified-since")
+      end
+
+      decision :etag_matches_for_if_match?, :if_unmodified_since_exists?, :handle_precondition_failed do
+        etag = gen_etag(var!(conn))
+        {etag == var!(conn).assigns.headers["if-match"], %{etag: etag}}
+      end
+
+      decision :if_match_star?, :if_unmodified_since_exists?, :etag_matches_for_if_match? do
+        var!(conn).assigns.headers["if-match"] == "*"
+      end
+
+      decision :if_match_exists?, :if_match_star?, :if_unmodified_since_exists? do
+        Map.has_key?(var!(conn).assigns.headers, "if-match")
+      end
+
+      decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?, do: true
+
+      decision :processable?, :exists?, :handle_unprocessable_entity, do: true
+
+
+      # TODO: not right treatment of identity when identity;q=0
+      decision :encoding_available?, :processable?, :handle_not_acceptable do
+        encoding = ConNeg.find_best(:encoding,
+                                    var!(conn).assigns.headers["accept-encoding"],
+                                    available_encodings) || "identity"
+        {true, %{encoding: encoding}}
+      end
+
+      decision :accept_encoding_exists?, :encoding_available?, :processable? do
+        Map.has_key?(var!(conn).assigns.headers, "accept-encoding")
+      end
+
+      decision :charset_available?, :accept_encoding_exists?, :handle_not_acceptable do
+        charset = ConNeg.find_best(:charset, var!(conn).assigns.headers["accept-charset"], available_charsets)
+        {!is_nil(charset), %{charset: charset}}
+      end
+
+      decision :accept_charset_exists?, :charset_available?, :accept_encoding_exists? do
+        Map.has_key?(var!(conn).assigns.headers, "accept-charset")
+      end
+
+      decision :language_available?, :accept_charset_exists?, :handle_not_acceptable do
+        language = ConNeg.find_best(:language,
+                                    var!(conn).assigns.headers["accept-language"],
+                                    available_languages)
+        {!is_nil(language), %{language: language}}
+      end
+
+      decision :accept_language_exists?, :language_available?, :accept_charset_exists? do
+        Map.has_key?(var!(conn).assigns.headers, "accept-language")
+      end
+
+      decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
+        type = ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], available_media_types)
+        {!is_nil(type), %{media_type: type}}
+      end
+
+      decision :accept_exists?, :media_type_available?, :accept_language_exists? do
+        if var!(conn).assigns.headers["accept"] do
+          true
+        else
+          {false, %{media_type: ConNeg.find_best(:accept, "*/*", available_media_types)}}
+        end
+      end
+
+      decision :is_options?, :handle_options, :accept_exists?, do: var!(conn).method == "OPTIONS"
+      decision :valid_entity_length?, :is_options?, :handle_request_entity_too_large, do: true
+      decision :known_content_type?, :valid_entity_length?, :handle_unsupported_media_type, do: true
+      decision :valid_content_header?, :known_content_type?, :handle_not_implemented, do: true
+      decision :allowed?, :valid_content_header?, :handle_forbidden, do: true
+      decision :authorized?, :allowed?, :handle_unauthorized, do: true
+      decision :malformed?, :handle_malformed, :authorized?, do: false
+      decision :method_allowed?, :malformed?, :handle_method_not_allowed, do: var!(conn).method in allowed_methods
+      decision :uri_too_long?, :handle_uri_too_long, :method_allowed?, do: false
+      decision :known_method?, :uri_too_long?, :handle_unknown_method, do: var!(conn).method in known_methods
+      decision :service_available?, :known_method?, :handle_service_not_available, do: true
+
+      entry_point :service_available? do
+        mapped_headers = Enum.into(var!(conn).req_headers, %{})
+        conn = decide(var!(root), %{
+          var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
+        })
+
+        if etag = gen_etag(conn) do
+          conn = put_resp_header(conn, "ETag", etag)
+        end
+
+        if lm = gen_last_modified(conn) do
+          conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
+        end
+
+        if media_type = conn.assigns[:media_type] do
+          if charset = conn.assigns[:charset] do
+            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
+          else
+            conn = put_resp_header(conn, "Content-Type", media_type)
+          end
+        end
+
+        if language = conn.assigns[:language] do
+          conn = put_resp_header(conn, "Content-Language", language)
+        end
+
+        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
+          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
+        end
+
+        conn
+      end
 
       def available_media_types, do: ["text/html"]
       def available_charsets, do: ["utf-8"]
       def available_encodings, do: ["identity"]
       def available_languages, do: ["*"]
+      def allowed_methods, do: ["POST", "GET"]
+      def known_methods, do: ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 
-      def last_modified(_conn), do: nil
+      def last_modified(_conn) do nil end
+      def etag(_conn) do nil end
 
-      def etag(_), do: false
-
-      defoverridable [allowed_methods: 0,
-                      method_allowed?: 1,
-                      known_methods: 0,
-                      known_method?: 1,
-                      last_modified: 1,
-                      etag: 1,
-                      available_media_types: 0,
+      defoverridable [available_media_types: 0,
                       available_charsets: 0,
-                      available_encodings: 0]
+                      available_encodings: 0,
+                      available_languages: 0,
+                      allowed_methods: 0,
+                      known_methods: 0,
+                      last_modified: 1,
+                      etag: 1]
     end
   end
 end
