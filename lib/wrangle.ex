@@ -1,8 +1,8 @@
-defmodule Divulger do
+defmodule Wrangle do
   defmacro __using__(_) do
     quote location: :keep do
-      use Divulger.DecisionGraph
-      require Divulger.ConnectionNegotiator, as: ConNeg
+      use Wrangle.DecisionGraph
+      require Wrangle.ConnectionNegotiator, as: ConNeg
 
       use Plug.Builder
       @behaviour Plug

@@ -1,9 +1,9 @@
-defmodule Divulger.DecisionGraph do
+defmodule Wrangle.DecisionGraph do
   defmacro __using__(_) do
     quote location: :keep do
-      import Divulger.DecisionGraph
+      import Wrangle.DecisionGraph
 
-      @before_compile Divulger.DecisionGraph
+      @before_compile Wrangle.DecisionGraph
       @nodes %{}
 
       defp handle(conn, result, consequent, alternate) do
