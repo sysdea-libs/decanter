@@ -2,6 +2,8 @@ defmodule Wrangle do
   defmacro __using__(_) do
     quote location: :keep do
       use Wrangle.DecisionGraph
+      import Wrangle.DecisionGraph
+      import Wrangle
       require Wrangle.ConnectionNegotiator, as: ConNeg
 
       use Plug.Builder
@@ -251,7 +253,7 @@ defmodule Wrangle do
 
       entry_point :service_available? do
         mapped_headers = Enum.into(var!(conn).req_headers, %{})
-        conn = decide(var!(root), %{
+        conn = do_decide(var!(root), %{
           var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
         })
 

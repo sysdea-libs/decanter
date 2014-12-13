@@ -1,17 +1,18 @@
 defmodule Wrangle.DecisionGraph do
   defmacro __using__(_) do
     quote location: :keep do
-      import Wrangle.DecisionGraph
-
       @before_compile Wrangle.DecisionGraph
-      @nodes %{}
 
-      defp handle(conn, result, consequent, alternate) do
+      @nodes %{}
+      @decisions %{}
+      @handlers %{}
+
+      defp dispatch_decision(conn, result, consequent, alternate) do
         case result do
-          true  -> decide(consequent, conn)
-          false -> decide(alternate, conn)
-          {true, assigns}  -> decide(consequent, %{conn | assigns: Map.merge(conn.assigns, assigns)})
-          {false, assigns} -> decide(alternate, %{conn | assigns: Map.merge(conn.assigns, assigns)})
+          true  -> do_decide(consequent, conn)
+          false -> do_decide(alternate, conn)
+          {true, assigns}  -> do_decide(consequent, %{conn | assigns: Map.merge(conn.assigns, assigns)})
+          {false, assigns} -> do_decide(alternate, %{conn | assigns: Map.merge(conn.assigns, assigns)})
         end
       end
 
@@ -43,53 +44,55 @@ defmodule Wrangle.DecisionGraph do
   end
 
   defp compile_decision(module, name, nodes, bodies) do
-
     if bodies[name] do
       {name, bodies}
     else
       case nodes[name] do
         {:decision, consequent, alternate, body} ->
-          case {Module.defines?(module, {name, 1}), body} do
-            {false, true} -> compile_decision(module, consequent, nodes, bodies)
-            {false, false} -> compile_decision(module, alternate, nodes, bodies)
-            {true, _} ->
+          decisions = Module.get_attribute(module, :decisions)
+
+          if Map.has_key?(decisions, name) do
+            body = decisions[name]
+          end
+
+          case body do
+            true -> compile_decision(module, consequent, nodes, bodies)
+            false -> compile_decision(module, alternate, nodes, bodies)
+            body ->
               {consequent, bodies} = compile_decision(module, consequent, nodes, bodies)
               {alternate, bodies} = compile_decision(module, alternate, nodes, bodies)
 
               body = quote location: :keep do
-                defp decide(unquote(name), var!(conn)) do
-                  handle(var!(conn), unquote(name)(var!(conn)), unquote(consequent), unquote(alternate))
-                end
-              end
-
-              {name, Map.put(bodies, name, body)}
-            {false, _} ->
-              {consequent, bodies} = compile_decision(module, consequent, nodes, bodies)
-              {alternate, bodies} = compile_decision(module, alternate, nodes, bodies)
-
-              body = quote location: :keep do
-                defp decide(unquote(name), var!(conn)) do
-                  handle(var!(conn), unquote(body), unquote(consequent), unquote(alternate))
+                defp do_decide(unquote(name), var!(conn)) do
+                  dispatch_decision(var!(conn), unquote(body), unquote(consequent), unquote(alternate))
                 end
               end
 
               {name, Map.put(bodies, name, body)}
             end
         {:handler, status, content} ->
-          defined = Module.defines?(module, {name, 1})
+          handlers = Module.get_attribute(module, :handlers)
 
-          if defined do
+          if Map.has_key?(handlers, name) do
+            handles = for {match,body} <- Enum.reverse(handlers[name]) do
+              quote do
+                unquote(match) -> unquote(body)
+              end
+            end
+
             body = quote location: :keep do
-              defp decide(unquote(name), var!(conn)) do
-                var!(conn)
-                |> Plug.Conn.resp(unquote(status), unquote(name)(var!(conn)))
+              defp do_decide(unquote(name), var!(conn)) do
+                content = case var!(conn) do
+                  unquote(handles |> List.flatten)
+                end
+
+                Plug.Conn.resp(var!(conn), unquote(status), content)
               end
             end
           else
             body = quote location: :keep do
-              defp decide(unquote(name), var!(conn)) do
-                var!(conn)
-                |> Plug.Conn.resp(unquote(status), unquote(content))
+              defp do_decide(unquote(name), var!(conn)) do
+                Plug.Conn.resp(var!(conn), unquote(status), unquote(content))
               end
             end
           end
@@ -99,8 +102,8 @@ defmodule Wrangle.DecisionGraph do
           {next, bodies} = compile_decision(module, next, nodes, bodies)
 
           body = quote location: :keep do
-            defp decide(unquote(name), var!(conn)) do
-              decide(unquote(next), unquote(name)(var!(conn)))
+            defp do_decide(unquote(name), var!(conn)) do
+              do_decide(unquote(next), unquote(name)(var!(conn)))
             end
           end
 
@@ -131,6 +134,28 @@ defmodule Wrangle.DecisionGraph do
   defmacro action(name, next) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:action, unquote(next)})
+    end
+  end
+
+  defmacro decide(name, args) do
+    quote do
+      @decisions Map.put(@decisions, unquote(name),
+                                     unquote(Macro.escape(args[:do], unquote: true)))
+    end
+  end
+
+  defmacro handle(name, conn, args) do
+    name = String.to_atom("handle_" <> (name |> to_string))
+
+    quote do
+      entry = {unquote(Macro.escape(conn, unquote: true)),
+               unquote(Macro.escape(args[:do], unquote: true))}
+
+      if existing = @handlers[unquote(name)] do
+        @handlers Map.put(@handlers, unquote(name), [entry|existing])
+      else
+        @handlers Map.put(@handlers, unquote(name), [entry])
+      end
     end
   end
 end

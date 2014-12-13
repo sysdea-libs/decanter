@@ -9,17 +9,25 @@ defmodule WrangleTest.R do
 
   def available_media_types, do: ["text/html", "application/json"]
 
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}) do
+  handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "HELLO"
   end
 
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "application/json"}}) do
+  handle :ok, %Plug.Conn{assigns: %{media_type: "application/json"}} do
     ~s({"message": "HELLO"})
   end
 
   def last_modified(_conn) do
     {{2014, 12, 13}, {11, 36, 32}}
   end
+end
+
+defmodule WrangleTest.Disabled do
+  use Wrangle
+
+  plug :serve
+
+  decide :service_available?, do: false
 end
 
 
@@ -96,5 +104,11 @@ defmodule WrangleTest do
     assert %Plug.Conn{status: 200,
                       resp_body: "HELLO"}
            = test_conn(WrangleTest.R, :get, %{"if-none-match" => ~s("1636")})
+  end
+
+  test "service_available?" do
+    assert %Plug.Conn{status: 503,
+                      resp_body: "Service not available."}
+           = test_conn(WrangleTest.Disabled, :get, %{})
   end
 end

@@ -30,11 +30,11 @@ defmodule HelloResource do
   def available_media_types, do: ["text/html", "application/json"]
   def allowed_methods, do: ["POST", "GET"]
 
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}) do
+  handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "<h1>HELLO</h1>"
   end
 
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "application/json"}}) do
+  handle :ok, %Plug.Conn{assigns: %{media_type: "application/json"}} do
     ~s({"message": "HELLO"})
   end
 
