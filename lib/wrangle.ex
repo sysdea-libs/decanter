@@ -36,10 +36,10 @@ defmodule Wrangle do
       handler :handle_no_content, 204, ""
 
       handler :handle_multiple_representations, 300, ""
-      handler :handle_see_other, 303, ""
       handler :handle_moved_permanently, 301, ""
-      handler :handle_moved_temporarily, 307, ""
+      handler :handle_see_other, 303, ""
       handler :handle_not_modified, 304, ""
+      handler :handle_moved_temporarily, 307, ""
 
       handler :handle_malformed, 400, "Bad request."
       handler :handle_unauthorized, 401, "Not authorized."
