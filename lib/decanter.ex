@@ -248,6 +248,7 @@ defmodule Decanter do
 
       # static properties
 
+      @patch_content_types nil
       @available_media_types ["text/html"]
       # @available_charsets ["utf-8"]
       # @available_encodings ["identity"]
@@ -264,7 +265,7 @@ defmodule Decanter do
                    {"POST", :post!, :method_post?},
                    {"PUT", :put!, :method_put?},
                    {"PATCH", :patch!, :method_patch?}],
-                  {["GET"], []},
+                  {["GET", "OPTIONS"], []},
                   fn ({method, name, decision}, {methods, decisions}) ->
       if Module.defines?(env.module, {name, 1}) do
         {[method|methods], decisions}
@@ -340,8 +341,19 @@ defmodule Decanter do
         conn = unquote(etag_check)
         conn = unquote(last_modified_check)
 
+        if conn.method == "OPTIONS" || conn.status == 405 do
+          conn = put_resp_header(conn, "Allow", Enum.join(@allowed_methods, ","))
+          if @patch_content_types do
+            conn = put_resp_header(conn, "Accept-Patch", Enum.join(@patch_content_types, ","))
+          end
+        end
+
+        vary = []
+
         if media_type = conn.assigns[:media_type] do
+          vary = ["Accept"|vary]
           if charset = conn.assigns[:charset] do
+            vary = ["Accept-Charset"|vary]
             conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
           else
             conn = put_resp_header(conn, "Content-Type", media_type)
@@ -349,11 +361,17 @@ defmodule Decanter do
         end
 
         if language = conn.assigns[:language] do
+          vary = ["Accept-Language"|vary]
           conn = put_resp_header(conn, "Content-Language", language)
         end
 
         if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
+          vary = ["Accept-Encoding"|vary]
           conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
+        end
+
+        if Enum.count(vary) > 0 do
+          conn = put_resp_header(conn, "Vary", Enum.join(vary, ","))
         end
 
         conn

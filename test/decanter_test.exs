@@ -21,6 +21,10 @@ defmodule DecanterTest.R do
   def last_modified(_conn) do
     {{2014, 12, 13}, {11, 36, 32}}
   end
+
+  def post!(conn) do
+    conn
+  end
 end
 
 defmodule DecanterTest.Disabled do
@@ -50,6 +54,28 @@ defmodule DecanterTest do
            = test_conn(DecanterTest.R, :get, %{})
   end
 
+  test "methods (405/options)" do
+    resp = test_conn(DecanterTest.R, :patch, %{})
+    assert %Plug.Conn{status: 405,
+                      resp_body: "Method not allowed."}
+           = resp
+    assert %{"Allow" => "POST,GET,OPTIONS"} = Enum.into(resp.resp_headers, %{})
+
+    resp = test_conn(DecanterTest.R, :options, %{})
+    assert %Plug.Conn{status: 200,
+                      resp_body: ""}
+           = resp
+    assert %{"Allow" => "POST,GET,OPTIONS"} = Enum.into(resp.resp_headers, %{})
+  end
+
+  test "vary" do
+    resp = test_conn(DecanterTest.R, :get, %{})
+    assert %Plug.Conn{status: 200,
+                      resp_body: "HELLO"}
+           = resp
+    assert %{"Vary" => "Accept"} = Enum.into(resp.resp_headers, %{})
+  end
+
   test "accept/charset" do
     resp = test_conn(DecanterTest.R, :get,
                       %{"accept" => "text/*",
@@ -57,7 +83,8 @@ defmodule DecanterTest do
     assert %Plug.Conn{status: 200,
                       resp_body: "HELLO"} = resp
     assert %{"ETag" => ~s("1635"),
-             "Content-Type" => "text/html;charset=utf-8"} = Enum.into(resp.resp_headers, %{})
+             "Content-Type" => "text/html;charset=utf-8",
+             "Vary" => "Accept-Charset,Accept"} = Enum.into(resp.resp_headers, %{})
 
     resp = test_conn(DecanterTest.R, :get,
                       %{"accept" => "text/html",
