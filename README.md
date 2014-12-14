@@ -79,5 +79,6 @@ end
 - [x] Inline unique decision paths.
 - [x] Detect allowed_methods from action definitions?
 - [ ] AOT analyse static properties rather than parsing on each request?
+- [ ] Options/Vary header construction, etc.
 - [ ] Complete test suite.
 - [ ] Documentation.
