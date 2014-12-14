@@ -68,32 +68,9 @@ defmodule Wrangle do
       action :put!, :new?
       action :delete!, :delete_enacted?
 
-      # GET response annotations
-      # TODO: This is wrong. Should put in the entry_point wrapper.
-      # That will need some more careful compilation of the entry point to avoid
-      # referencing functions that possibly don't exist (e
-      decision :annotate_etag, :handle_ok, :handle_ok do
-        if var!(conn).assigns[:etag] do
-          true
-        else
-          etag = format_etag(etag var!(conn))
-          {true, %{etag: etag}}
-        end
-      end
-      branch :annotate_etag?, :supports_etag?, :annotate_etag, :handle_ok
-      decision :annotate_last_modified, :annotate_etag?, :annotate_etag? do
-        if var!(conn).assigns[:last_modified] do
-          true
-        else
-          {true, %{last_modified: last_modified(var!(conn))}}
-        end
-      end
-      branch :annotate_last_modified?, :supports_last_modified?,
-                                       :annotate_last_modified, :annotate_etag?
-
       # decision graph
 
-      decision :multiple_representations?, :handle_multiple_representations, :annotate_last_modified?
+      decision :multiple_representations?, :handle_multiple_representations, :handle_ok
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
       decision :new?, :handle_created, :respond_with_entity?
       decision :post_redirect?, :handle_see_other, :new?
@@ -282,7 +259,6 @@ defmodule Wrangle do
 
   defmacro __before_compile__(env) do
     # Short circuit METHOD checks based on implemented action methods
-    # Auto-generate an allowed_methods property if missing
     {methods, decisions} =
       Enum.reduce [{"DELETE", :delete!, :method_delete?},
                    {"POST", :post!, :method_post?},
@@ -300,73 +276,83 @@ defmodule Wrangle do
       end
     end
 
+    supports_etag = Module.defines?(env.module, {:etag, 1})
+    supports_last_modified = Module.defines?(env.module, {:last_modified, 1})
+
+    etag_check = if supports_etag do
+      quote do
+        if etag = var!(conn).assigns[:etag] || format_etag(etag var!(conn)) do
+          var!(conn) = put_resp_header(var!(conn), "ETag", etag)
+        end
+      end
+    else
+      nil
+    end
+
+    last_modified_check = if supports_last_modified do
+      quote do
+        if last_modified = var!(conn).assigns[:last_modified] || last_modified(var!(conn)) do
+          var!(conn) = put_resp_header(var!(conn), "Last-Modified",
+                                       :httpd_util.rfc1123_date(last_modified) |> to_string)
+        end
+      end
+    else
+      nil
+    end
+
     quote do
+      # Auto-insert an allowed_methods property if missing
       unless Module.get_attribute(__MODULE__, :allowed_methods) do
         @allowed_methods unquote(Macro.escape methods)
       end
 
+      # Override method decisions
       unquote(decisions)
+
+      # Add flags for deciding on etag/last_modified checks
+      decide :supports_etag?, do: unquote(supports_etag)
+      decide :supports_last_modified?, do: unquote(supports_last_modified)
 
       # Short circuit ACCEPT checks based on implemented static properties
       unless Module.get_attribute(__MODULE__, :available_languages) do
         decide :accept_language_exists?, do: false
       end
-
-      # Little more fuzzy on this one
       unless Module.get_attribute(__MODULE__, :available_charsets) do
         decide :accept_charset_exists?, do: false
       end
-
       unless Module.get_attribute(__MODULE__, :available_encodings) do
         decide :accept_encoding_exists?, do: false
       end
 
-      # Add flags for deciding on etag/last_modified checks
-      if Module.defines?(__MODULE__, {:etag, 1}) do
-        decide :supports_etag?, do: true
-      else
-        decide :supports_etag?, do: false
-      end
-
-      if Module.defines?(__MODULE__, {:last_modified, 1}) do
-        decide :supports_last_modified?, do: true
-      else
-        decide :supports_last_modified?, do: false
-      end
-
-      def serve(conn, opts) do
-        mapped_headers = Enum.into(conn.req_headers, %{})
+      # Generate entry point
+      def serve(var!(conn), opts) do
+        mapped_headers = Enum.into(var!(conn).req_headers, %{})
 
         # root specifies the actual root handler once ellision has taken place
-        conn = do_decide(@entry_point, %{
-          conn | assigns: Map.merge(conn.assigns, %{headers: mapped_headers})
+        var!(conn) = do_decide(@entry_point, %{
+          var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
         })
 
-        if etag = conn.assigns[:etag] do
-          conn = put_resp_header(conn, "ETag", etag)
-        end
+        unquote(etag_check)
+        unquote(last_modified_check)
 
-        if lm = conn.assigns[:last_modified] do
-          conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
-        end
-
-        if media_type = conn.assigns[:media_type] do
-          if charset = conn.assigns[:charset] do
-            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
+        if media_type = var!(conn).assigns[:media_type] do
+          if charset = var!(conn).assigns[:charset] do
+            var!(conn) = put_resp_header(var!(conn), "Content-Type", "#{media_type};charset=#{charset}")
           else
-            conn = put_resp_header(conn, "Content-Type", media_type)
+            var!(conn) = put_resp_header(var!(conn), "Content-Type", media_type)
           end
         end
 
-        if language = conn.assigns[:language] do
-          conn = put_resp_header(conn, "Content-Language", language)
+        if language = var!(conn).assigns[:language] do
+          var!(conn) = put_resp_header(var!(conn), "Content-Language", language)
         end
 
-        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
-          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
+        if var!(conn).assigns[:encoding] && var!(conn).assigns[:encoding] != "identity" do
+          var!(conn) = put_resp_header(var!(conn), "Content-Encoding", var!(conn).assigns[:encoding])
         end
 
-        conn
+        var!(conn)
       end
     end
   end
