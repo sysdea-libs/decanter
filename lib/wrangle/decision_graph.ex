@@ -108,13 +108,33 @@ defmodule Wrangle.DecisionGraph do
                 end
               end
 
-              body = quote location: :keep do
-                defp do_decide(unquote(name), var!(conn)) do
-                  case handle_decision(var!(conn), unquote(body)) do
-                    {true, var!(conn)} -> unquote(consequent_body)
-                    {false, var!(conn)} -> unquote(alternate_body)
+              strategy = case body do
+                {:==, _, _} -> :if
+                {:in, _, _} -> :if
+                {:has_header, _, _} -> :if
+                _ -> :case
+              end
+
+              body = case strategy do
+                :if ->
+                  quote location: :keep do
+                    defp do_decide(unquote(name), var!(conn)) do
+                      if unquote(body) do
+                        unquote(consequent_body)
+                      else
+                        unquote(alternate_body)
+                      end
+                    end
                   end
-                end
+                :case ->
+                  quote location: :keep do
+                    defp do_decide(unquote(name), var!(conn)) do
+                      case handle_decision(var!(conn), unquote(body)) do
+                        {true, var!(conn)} -> unquote(consequent_body)
+                        {false, var!(conn)} -> unquote(alternate_body)
+                      end
+                    end
+                  end
               end
 
               {name, Map.put(bodies, name, body)}
