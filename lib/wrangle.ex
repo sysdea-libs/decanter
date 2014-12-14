@@ -17,15 +17,8 @@ defmodule Wrangle do
 
       # util functions
 
-      defp gen_last_modified(conn) do
-        case last_modified(conn) do
-          nil -> nil
-          lm -> lm
-        end
-      end
-
-      defp gen_etag(conn) do
-        case etag(conn) do
+      defp format_etag(etag) do
+        case etag do
           nil -> nil
           etag -> "\"#{to_string(etag)}\""
         end
@@ -77,7 +70,26 @@ defmodule Wrangle do
 
       # decision graph
 
-      decision :multiple_representations?, :handle_multiple_representations, :handle_ok
+      # bit of a hack, inline actions might make sense for this?
+      decision :annotate_etag, :handle_ok, :handle_ok do
+        if var!(conn).assigns[:etag] do
+          true
+        else
+          etag = format_etag(etag var!(conn))
+          {true, %{etag: etag}}
+        end
+      end
+      decision :_sup_etag_ok?, :annotate_etag, :handle_ok
+      decision :annotate_last_modified, :_sup_etag_ok?, :_sup_etag_ok? do
+        if var!(conn).assigns[:last_modified] do
+          true
+        else
+          {true, %{last_modified: last_modified(var!(conn))}}
+        end
+      end
+      decision :_sup_last_modified_ok?, :annotate_last_modified, :_sup_etag_ok?
+
+      decision :multiple_representations?, :handle_multiple_representations, :_sup_last_modified_ok?
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
       decision :new?, :handle_created, :respond_with_entity?
       decision :post_redirect?, :handle_see_other, :new?
@@ -100,7 +112,7 @@ defmodule Wrangle do
       decision :method_patch?, :patch!, :post_to_existing?
       decision :method_delete?, :delete!, :method_patch?
       decision :modified_since?, :method_delete?, :handle_not_modified do
-        case gen_last_modified(var!(conn)) do
+        case last_modified(var!(conn)) do
           nil -> true
           last_modified ->
             lmdate = Timex.Date.from(last_modified)
@@ -110,7 +122,8 @@ defmodule Wrangle do
             end
         end
       end
-      decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
+      decision :_sup_last_modified_since?, :modified_since?, :method_delete?
+      decision :if_modified_since_valid_date?, :_sup_last_modified_since?, :method_delete? do
         case Timex.DateFormat.parse(var!(conn).assigns.headers["if-modified-since"], "{RFC1123}") do
           {:ok, date} -> {true, %{if_modified_since_date: date}}
           _ -> false
@@ -118,13 +131,14 @@ defmodule Wrangle do
       end
       decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
       decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
-        etag = gen_etag(var!(conn))
+        etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
       end
-      decision :if_none_match_star?, :if_none_match?, :etag_matches_for_if_none?
+      decision :_sup_etag_if_none?, :etag_matches_for_if_none?, :if_modified_since_exists?
+      decision :if_none_match_star?, :if_none_match?, :_sup_etag_if_none?
       decision :if_none_match_exists?, :if_none_match_star?, :if_modified_since_exists?
       decision :unmodified_since?, :handle_precondition_failed, :if_none_match_exists? do
-        case gen_last_modified(var!(conn)) do
+        case last_modified(var!(conn)) do
           nil -> true
           last_modified ->
             lmdate = Timex.Date.from(last_modified)
@@ -134,7 +148,8 @@ defmodule Wrangle do
             end
         end
       end
-      decision :if_unmodified_since_valid_date?, :unmodified_since?, :if_none_match_exists? do
+      decision :_sup_last_modified_since_exists?, :unmodified_since?, :handle_precondition_failed
+      decision :if_unmodified_since_valid_date?, :_sup_last_modified_since_exists?, :if_none_match_exists? do
         case Timex.DateFormat.parse(var!(conn).assigns.headers["if-unmodified-since"], "{RFC1123}") do
           {:ok, date} -> {true, %{if_unmodified_since_date: date}}
           _ -> false
@@ -142,10 +157,11 @@ defmodule Wrangle do
       end
       decision :if_unmodified_since_exists?, :if_unmodified_since_valid_date?, :if_none_match_exists?
       decision :etag_matches_for_if_match?, :if_unmodified_since_exists?, :handle_precondition_failed do
-        etag = gen_etag(var!(conn))
+        etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-match"], %{etag: etag}}
       end
-      decision :if_match_star?, :if_unmodified_since_exists?, :etag_matches_for_if_match?
+      decision :_sup_etag_if_match?, :etag_matches_for_if_match?, :handle_precondition_failed
+      decision :if_match_star?, :if_unmodified_since_exists?, :_sup_etag_if_match?
       decision :if_match_exists?, :if_match_star?, :if_unmodified_since_exists?
       decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
       decision :processable?, :exists?, :handle_unprocessable_entity
@@ -252,11 +268,11 @@ defmodule Wrangle do
           var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
         })
 
-        if etag = conn.assigns[:etag] || gen_etag(conn) do
+        if etag = conn.assigns[:etag] do
           conn = put_resp_header(conn, "ETag", etag)
         end
 
-        if lm = conn.assigns[:last_modified] || gen_last_modified(conn) do
+        if lm = conn.assigns[:last_modified] do
           conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
         end
 
@@ -287,16 +303,6 @@ defmodule Wrangle do
       # @available_languages ["*"]
       # @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
-
-      # dynamic properties
-
-      def last_modified(_conn) do nil end
-      def etag(_conn) do nil end
-
-      # overrides
-
-      defoverridable [last_modified: 1,
-                      etag: 1]
     end
   end
 
@@ -350,6 +356,27 @@ defmodule Wrangle do
 
       unless Module.get_attribute(__MODULE__, :available_encodings) do
         decide :accept_encoding_exists?, do: false
+      end
+
+      # Add flags for deciding on etag/last_modified checks
+      if Module.defines?(__MODULE__, {:etag, 1}) do
+        decide :_sup_etag_if_match?, do: true
+        decide :_sup_etag_ok?, do: true
+        decide :_sup_etag_if_none?, do: true
+      else
+        decide :_sup_etag_if_match?, do: false
+        decide :_sup_etag_ok?, do: false
+        decide :_sup_etag_if_none?, do: false
+      end
+
+      if Module.defines?(__MODULE__, {:last_modified, 1}) do
+        decide :_sup_last_modified_since_exists?, do: true
+        decide :_sup_last_modified_ok?, do: true
+        decide :_sup_last_modified_since?, do: true
+      else
+        decide :_sup_last_modified_since_exists?, do: false
+        decide :_sup_last_modified_ok?, do: false
+        decide :_sup_last_modified_since?, do: false
       end
     end
   end
