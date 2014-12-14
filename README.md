@@ -1,24 +1,14 @@
 # Decanter
 
-Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, exposing as a Plug.
+Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, as a Plug. Exposes resources through a RESTful interface.
 
 ## Status
 
 Experimental
 
-## Why not just wrap cowboy_rest/webmachine?
-
-`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Decanter sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
-
-Decanter can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
-
-## What about Phoenix?
-
-Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Decanter for when operating outside of Phoenix.
-
 ## Example
 
-Port is still fairly direct, but the following shows the basic concepts of decision points to customise resource handling:
+The API is still in flux, but the following shows the basic concepts of decision points to customise resource handling:
 
 ```elixir
 defmodule UserResource do
@@ -73,6 +63,16 @@ defmodule UserResource do
   end
 end
 ```
+
+## Why not just wrap cowboy_rest/webmachine?
+
+`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Decanter sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
+
+Decanter can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
+
+## What about Phoenix?
+
+Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Decanter for when operating outside of Phoenix.
 
 ## TODO
 
