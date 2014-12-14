@@ -67,7 +67,6 @@ defmodule Wrangle do
       action :patch!, :respond_with_entity?
       action :put!, :new?
       action :delete!, :delete_enacted?
-      action :options!, :handle_options
 
       # GET response annotations
       # TODO: This is wrong. Should put in the entry_point wrapper.
@@ -207,7 +206,7 @@ defmodule Wrangle do
           {false, %{media_type: ConNeg.find_best(:accept, "*/*", @available_media_types)}}
         end
       end
-      decision :method_options?, :options!, :accept_exists?
+      decision :method_options?, :handle_options, :accept_exists?
       decision :valid_entity_length?, :method_options?, :handle_request_entity_too_large
       decision :known_content_type?, :valid_entity_length?, :handle_unsupported_media_type
       decision :valid_content_header?, :known_content_type?, :handle_not_implemented
@@ -315,46 +314,31 @@ defmodule Wrangle do
   end
 
   defmacro __before_compile__(env) do
+    # Short circuit METHOD checks based on implemented action methods
+    # Auto-generate an allowed_methods property if missing
+    {methods, decisions} =
+      Enum.reduce [{"DELETE", :delete!, :method_delete?},
+                   {"POST", :post!, :method_post?},
+                   {"PUT", :put!, :method_put?},
+                   {"PATCH", :patch!, :method_patch?}],
+                  {["GET"], []},
+                  fn ({method, name, decision}, {methods, decisions}) ->
+      if Module.defines?(env.module, {name, 1}) do
+        {[method|methods], decisions}
+      else
+        form = quote do
+          decide unquote(decision), do: false
+        end
+        {methods, [form|decisions]}
+      end
+    end
+
     quote do
-      # Short circuit METHOD checks based on implemented action methods
-      # Auto-generate an allowed_methods property if missing
-
-      methods = ["GET"]
-
-      if Module.defines?(__MODULE__, {:delete!, 1}) do
-        methods = ["DELETE"|methods]
-      else
-        decide :method_delete?, do: false
-      end
-
-      if Module.defines?(__MODULE__, {:post!, 1}) do
-        methods = ["POST"|methods]
-      else
-        decide :method_post?, do: false
-      end
-
-      if Module.defines?(__MODULE__, {:put!, 1}) do
-        methods = ["PUT"|methods]
-      else
-        decide :method_put?, do: false
-      end
-
-      if Module.defines?(__MODULE__, {:patch!, 1}) do
-        methods = ["PATCH"|methods]
-      else
-        decide :method_patch?, do: false
-      end
-
-      if Module.defines?(__MODULE__, {:options!, 1}) do
-        methods = ["OPTIONS"|methods]
-      else
-        decide :method_options?, do: false
-      end
-
       unless Module.get_attribute(__MODULE__, :allowed_methods) do
-        @allowed_methods methods
+        @allowed_methods unquote(Macro.escape methods)
       end
 
+      unquote(decisions)
 
       # Short circuit ACCEPT checks based on implemented static properties
       unless Module.get_attribute(__MODULE__, :available_languages) do
