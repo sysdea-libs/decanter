@@ -25,7 +25,7 @@ defmodule Wrangle.DecisionGraph do
     counts = visit_nodes(env.module, entry_name, nodes, %{})
 
     {entry_name, r} = compile_decision(env.module, entry_name, {counts, nodes}, %{})
-    # IO.inspect {"done", root}
+    # IO.inspect {"done", entry_name}
     fn_bodies = for {_, body} <- r do
       # IO.puts Macro.to_string(body)
       body

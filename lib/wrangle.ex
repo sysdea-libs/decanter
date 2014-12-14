@@ -1,6 +1,8 @@
 defmodule Wrangle do
   defmacro __using__(_) do
     quote location: :keep do
+      @before_compile Wrangle
+
       use Wrangle.DecisionGraph
       import Wrangle.DecisionGraph
       import Wrangle
@@ -92,15 +94,12 @@ defmodule Wrangle do
       decision :method_put?, :put_to_different_url?, :existed?
       decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?
       decision :if_none_match?, :handle_not_modified, :handle_precondition_failed
+      decision :put_to_existing?, :conflict?, :multiple_representations?
+      decision :post_to_existing?, :post!, :put_to_existing?
       decision :delete_enacted?, :respond_with_entity?, :handle_accepted
-      dispatch :dispatch_on_method, var!(conn).method, [
-        ["DELETE", :delete!],
-        ["PATCH", :patch!],
-        ["POST", :post!],
-        ["PUT", :conflict?],
-        ["GET", :multiple_representations?]
-      ]
-      decision :modified_since?, :dispatch_on_method, :handle_not_modified do
+      decision :method_patch?, :patch!, :post_to_existing?
+      decision :method_delete?, :delete!, :method_patch?
+      decision :modified_since?, :method_delete?, :handle_not_modified do
         case gen_last_modified(var!(conn)) do
           nil -> true
           last_modified ->
@@ -111,13 +110,13 @@ defmodule Wrangle do
             end
         end
       end
-      decision :if_modified_since_valid_date?, :modified_since?, :dispatch_on_method do
+      decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
         case Timex.DateFormat.parse(var!(conn).assigns.headers["if-modified-since"], "{RFC1123}") do
           {:ok, date} -> {true, %{if_modified_since_date: date}}
           _ -> false
         end
       end
-      decision :if_modified_since_exists?, :if_modified_since_valid_date?, :dispatch_on_method
+      decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
       decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
         etag = gen_etag(var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
@@ -233,8 +232,14 @@ defmodule Wrangle do
       decide :if_none_match_star?, do: var!(conn).assigns.headers["if-none-match"] == "*"
       decide :if_unmodified_since_exists?, do: has_header(var!(conn), "if-unmodified-since")
       decide :is_options?, do: var!(conn).method == "OPTIONS"
+
+      # Internal decision points that are automatically blanked
+      decide :method_delete?, do: var!(conn).method == "DELETE"
+      decide :method_patch?, do: var!(conn).method == "PATCH"
+      decide :put_to_existing?, do: var!(conn).method == "PUT"
       decide :method_put?, do: var!(conn).method == "PUT"
       decide :post_to_gone?, do: var!(conn).method == "POST"
+      decide :post_to_existing?, do: var!(conn).method == "POST"
       decide :post_to_missing?, do: var!(conn).method == "POST"
 
       # entry handler
@@ -278,8 +283,8 @@ defmodule Wrangle do
 
       @available_media_types ["text/html"]
       @available_charsets ["utf-8"]
-      @available_encodings ["identity"]
-      @available_languages ["*"]
+      # @available_encodings ["identity"]
+      # @available_languages ["*"]
       @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 
@@ -288,21 +293,48 @@ defmodule Wrangle do
       def last_modified(_conn) do nil end
       def etag(_conn) do nil end
 
-      # actions
-
-      defp delete!(conn) do end
-      defp post!(conn) do end
-      defp put!(conn) do end
-      defp patch!(conn) do end
-
       # overrides
 
       defoverridable [last_modified: 1,
-                      etag: 1,
-                      delete!: 1,
-                      post!: 1,
-                      put!: 1,
-                      patch!: 1]
+                      etag: 1]
+    end
+  end
+
+  defmacro __before_compile__(env) do
+    quote do
+      # Short circuit METHOD checks based on implemented action methods
+      unless Module.defines?(__MODULE__, {:delete!, 1}) do
+        decide :method_delete?, do: false
+      end
+
+      unless Module.defines?(__MODULE__, {:post!, 1}) do
+        decide :post_to_gone?, do: false
+        decide :post_to_existing?, do: false
+        decide :post_to_missing?, do: false
+      end
+
+      unless Module.defines?(__MODULE__, {:put!, 1}) do
+        decide :put_to_existing?, do: false
+        decide :method_put?, do: false
+      end
+
+      unless Module.defines?(__MODULE__, {:patch!, 1}) do
+        decide :method_patch?, do: false
+      end
+
+      # Short circuit ACCEPT checks based on implemented static properties
+      unless Module.get_attribute(__MODULE__, :available_languages) do
+        decide :accept_language_exists?, do: false
+      end
+
+      # Little more fuzzy on this one
+      # unless Module.get_attribute(__MODULE__, :available_charsets) do
+      #   decide :accept_charset_exists?, do: false
+      # end
+
+      unless Module.get_attribute(__MODULE__, :available_encodings) do
+        decide :accept_encoding_exists?, do: false
+      end
     end
   end
 end
