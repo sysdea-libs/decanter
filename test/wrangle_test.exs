@@ -8,6 +8,7 @@ defmodule WrangleTest.R do
   end
 
   @available_media_types ["text/html", "application/json"]
+  @available_charsets ["utf-8"]
 
   handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
     "HELLO"

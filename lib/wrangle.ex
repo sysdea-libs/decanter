@@ -68,9 +68,10 @@ defmodule Wrangle do
       action :put!, :new?
       action :delete!, :delete_enacted?
 
-      # decision graph
-
-      # bit of a hack, inline actions might make sense for this?
+      # GET response annotations
+      # TODO: This is wrong. Should put in the entry_point wrapper.
+      # That will need some more careful compilation of the entry point to avoid
+      # referencing functions that possibly don't exist (e
       decision :annotate_etag, :handle_ok, :handle_ok do
         if var!(conn).assigns[:etag] do
           true
@@ -88,6 +89,8 @@ defmodule Wrangle do
         end
       end
       decision :_sup_last_modified_ok?, :annotate_last_modified, :_sup_etag_ok?
+
+      # decision graph
 
       decision :multiple_representations?, :handle_multiple_representations, :_sup_last_modified_ok?
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
@@ -298,7 +301,7 @@ defmodule Wrangle do
       # static properties
 
       @available_media_types ["text/html"]
-      @available_charsets ["utf-8"]
+      # @available_charsets ["utf-8"]
       # @available_encodings ["identity"]
       # @available_languages ["*"]
       # @allowed_methods ["POST", "GET"]
@@ -350,9 +353,9 @@ defmodule Wrangle do
       end
 
       # Little more fuzzy on this one
-      # unless Module.get_attribute(__MODULE__, :available_charsets) do
-      #   decide :accept_charset_exists?, do: false
-      # end
+      unless Module.get_attribute(__MODULE__, :available_charsets) do
+        decide :accept_charset_exists?, do: false
+      end
 
       unless Module.get_attribute(__MODULE__, :available_encodings) do
         decide :accept_encoding_exists?, do: false
