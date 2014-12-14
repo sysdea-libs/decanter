@@ -1,18 +1,19 @@
 defmodule Wrangle.DecisionGraph do
   defmacro __using__(_) do
     quote location: :keep do
+      import Wrangle.DecisionGraph
       @before_compile Wrangle.DecisionGraph
 
       @nodes %{}
       @decisions %{}
       @handlers %{}
 
-      defp handle_decision(conn, result) do
+      defp handle_decision(ctx, result) do
         case result do
-          true  -> {true, conn}
-          false -> {false, conn}
-          {true, assigns}  -> {true, %{conn | assigns: Map.merge(conn.assigns, assigns)}}
-          {false, assigns} -> {false, %{conn | assigns: Map.merge(conn.assigns, assigns)}}
+          true  -> {true, ctx}
+          false -> {false, ctx}
+          {true, ctx}  -> {true, ctx}
+          {false, ctx} -> {false, ctx}
         end
       end
     end

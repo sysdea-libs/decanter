@@ -4,16 +4,15 @@ defmodule Wrangle do
       @before_compile Wrangle
 
       use Wrangle.DecisionGraph
-      import Wrangle.DecisionGraph
-      import Wrangle
-      require Wrangle.ConnectionNegotiator, as: ConNeg
-
       use Plug.Builder
-      @behaviour Plug
+
+      require Wrangle.ConnectionNegotiator, as: ConNeg
 
       def init(opts) do
         opts
       end
+
+      defoverridable [init: 1]
 
       # util functions
 
@@ -99,7 +98,7 @@ defmodule Wrangle do
             modsincedate = var!(conn).assigns[:if_modified_since_date]
             case last_modified == modsincedate do
               true -> false
-              false -> {true, %{last_modified: last_modified}}
+              false -> {true, assign(var!(conn), :last_modified, last_modified)}
             end
         end
       end
@@ -109,13 +108,14 @@ defmodule Wrangle do
         datestring = to_char_list var!(conn).assigns.headers["if-modified-since"]
         case :httpd_util.convert_request_date(datestring) do
           :bad_date -> false
-          date -> {true, %{if_modified_since_date: date}}
+          date -> {true, assign(var!(conn), :if_modified_since_date, date)}
         end
       end
       decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
       decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
         etag = format_etag(etag var!(conn))
-        {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
+        {etag == var!(conn).assigns.headers["if-none-match"],
+         assign(var!(conn), :etag, etag)}
       end
       branch :etag_for_if_none?, :supports_etag?,
                                  :etag_matches_for_if_none?, :if_modified_since_exists?
@@ -127,7 +127,7 @@ defmodule Wrangle do
           last_modified ->
             unmodsincedate = var!(conn).assigns[:if_unmodified_since_date]
             case last_modified == unmodsincedate do
-              true -> {false, %{last_modified: last_modified}}
+              true -> {false, assign(var!(conn), :last_modified, last_modified)}
               false -> true
             end
         end
@@ -138,13 +138,13 @@ defmodule Wrangle do
         datestring = to_char_list var!(conn).assigns.headers["if-unmodified-since"]
         case :httpd_util.convert_request_date(datestring) do
           :bad_date -> false
-          date -> {true, %{if_unmodified_since_date: date}}
+          date -> {true, assign(var!(conn), :if_unmodified_since_date, date)}
         end
       end
       decision :if_unmodified_since_exists?, :if_unmodified_since_valid_date?, :if_none_match_exists?
       decision :etag_matches_for_if_match?, :if_unmodified_since_exists?, :handle_precondition_failed do
         etag = format_etag(etag var!(conn))
-        {etag == var!(conn).assigns.headers["if-match"], %{etag: etag}}
+        {etag == var!(conn).assigns.headers["if-match"], assign(var!(conn), :etag, etag)}
       end
       branch :etag_for_if_match?, :supports_etag?,
                                   :etag_matches_for_if_match?, :handle_precondition_failed
@@ -157,30 +157,30 @@ defmodule Wrangle do
         encoding = ConNeg.find_best(:encoding,
                                     var!(conn).assigns.headers["accept-encoding"],
                                     @available_encodings) || "identity"
-        {true, %{encoding: encoding}}
+        {true, assign(var!(conn), :encoding, encoding)}
       end
       decision :accept_encoding_exists?, :encoding_available?, :processable?
       decision :charset_available?, :accept_encoding_exists?, :handle_not_acceptable do
         charset = ConNeg.find_best(:charset, var!(conn).assigns.headers["accept-charset"], @available_charsets)
-        {!is_nil(charset), %{charset: charset}}
+        {!is_nil(charset), assign(var!(conn), :charset, charset)}
       end
       decision :accept_charset_exists?, :charset_available?, :accept_encoding_exists?
       decision :language_available?, :accept_charset_exists?, :handle_not_acceptable do
         language = ConNeg.find_best(:language,
                                     var!(conn).assigns.headers["accept-language"],
                                     @available_languages)
-        {!is_nil(language), %{language: language}}
+        {!is_nil(language), assign(var!(conn), :language, language)}
       end
       decision :accept_language_exists?, :language_available?, :accept_charset_exists?
       decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
         type = ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], @available_media_types)
-        {!is_nil(type), %{media_type: type}}
+        {!is_nil(type), assign(var!(conn), :media_type, type)}
       end
       decision :accept_exists?, :media_type_available?, :accept_language_exists? do
         if var!(conn).assigns.headers["accept"] do
           true
         else
-          {false, %{media_type: ConNeg.find_best(:accept, "*/*", @available_media_types)}}
+          {false, assign(var!(conn), :media_type, ConNeg.find_best(:accept, "*/*", @available_media_types))}
         end
       end
       decision :method_options?, :handle_options, :accept_exists?
@@ -333,9 +333,9 @@ defmodule Wrangle do
         mapped_headers = Enum.into(var!(conn).req_headers, %{})
 
         # root specifies the actual root handler once ellision has taken place
-        var!(conn) = do_decide(@entry_point, %{
-          var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
-        })
+        var!(conn) = do_decide(@entry_point, var!(conn)
+                                             |> assign(:headers, mapped_headers)
+                                             |> assign(:opts, opts))
 
         conn = unquote(etag_check)
         conn = unquote(last_modified_check)
