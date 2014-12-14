@@ -36,7 +36,7 @@ defmodule HelloResource do
 
   # decision points
   decide :authorized? do
-    Map.has_key?(conn.assigns, [:user])
+    Map.has_key?(get_session(conn), :user)
   end
 
   # handlers
