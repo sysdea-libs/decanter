@@ -86,6 +86,10 @@ defmodule WrangleTest do
   end
 
   test "last_modified" do
+    resp = test_conn(WrangleTest.R, :get, %{})
+    assert %{"ETag" => ~s("1635"),
+             "Last-Modified" => "Sat, 13 Dec 2014 11:36:32 GMT"} = Enum.into(resp.resp_headers, %{})
+
     assert %Plug.Conn{status: 304,
                       resp_body: ""}
            = test_conn(WrangleTest.R, :get,

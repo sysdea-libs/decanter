@@ -26,7 +26,6 @@ defmodule Wrangle.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [{:plug, "~> 0.9.0"},
-     {:cowboy, "~> 1.0"},
-     {:timex, "~> 0.13.2"}]
+     {:cowboy, "~> 1.0"}]
   end
 end

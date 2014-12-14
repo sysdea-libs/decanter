@@ -118,18 +118,19 @@ defmodule Wrangle do
         case last_modified(var!(conn)) do
           nil -> true
           last_modified ->
-            lmdate = Timex.Date.from(last_modified)
-            case Timex.Date.diff(var!(conn).assigns[:if_modified_since_date], lmdate, :secs) do
-              0 -> false
-              _ -> {true, %{last_modified: last_modified}}
+            modsincedate = var!(conn).assigns[:if_modified_since_date]
+            case last_modified == modsincedate do
+              true -> false
+              false -> {true, %{last_modified: last_modified}}
             end
         end
       end
       decision :_sup_last_modified_since?, :modified_since?, :method_delete?
       decision :if_modified_since_valid_date?, :_sup_last_modified_since?, :method_delete? do
-        case Timex.DateFormat.parse(var!(conn).assigns.headers["if-modified-since"], "{RFC1123}") do
-          {:ok, date} -> {true, %{if_modified_since_date: date}}
-          _ -> false
+        datestring = to_char_list var!(conn).assigns.headers["if-modified-since"]
+        case :httpd_util.convert_request_date(datestring) do
+          :bad_date -> false
+          date -> {true, %{if_modified_since_date: date}}
         end
       end
       decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
@@ -144,18 +145,19 @@ defmodule Wrangle do
         case last_modified(var!(conn)) do
           nil -> true
           last_modified ->
-            lmdate = Timex.Date.from(last_modified)
-            case Timex.Date.diff(var!(conn).assigns[:if_unmodified_since_date], lmdate, :secs) do
-              0 -> {false, %{last_modified: last_modified}}
-              _ -> true
+            unmodsincedate = var!(conn).assigns[:if_unmodified_since_date]
+            case last_modified == unmodsincedate do
+              true -> {false, %{last_modified: last_modified}}
+              false -> true
             end
         end
       end
       decision :_sup_last_modified_since_exists?, :unmodified_since?, :handle_precondition_failed
       decision :if_unmodified_since_valid_date?, :_sup_last_modified_since_exists?, :if_none_match_exists? do
-        case Timex.DateFormat.parse(var!(conn).assigns.headers["if-unmodified-since"], "{RFC1123}") do
-          {:ok, date} -> {true, %{if_unmodified_since_date: date}}
-          _ -> false
+        datestring = to_char_list var!(conn).assigns.headers["if-unmodified-since"]
+        case :httpd_util.convert_request_date(datestring) do
+          :bad_date -> false
+          date -> {true, %{if_unmodified_since_date: date}}
         end
       end
       decision :if_unmodified_since_exists?, :if_unmodified_since_valid_date?, :if_none_match_exists?
