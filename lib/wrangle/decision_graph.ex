@@ -59,10 +59,6 @@ defmodule Wrangle.DecisionGraph do
                 Map.put(acc, name, 1)
               end
           end
-        {:dispatch, _conn_match, handles} ->
-          Enum.reduce(handles, acc, fn([_, branch], acc) ->
-            visit_nodes(module, branch, nodes, acc)
-          end)
         {:handler, _status, _content} ->
           if acc[name] do
             Map.put(acc, name, acc[name] + 1)
@@ -158,24 +154,6 @@ defmodule Wrangle.DecisionGraph do
 
               {name, Map.put(bodies, name, body)}
             end
-        {:dispatch, conn_match, cases} ->
-          {handles, bodies} = Enum.map_reduce(cases, bodies, fn ([match, branch], bodies) ->
-            {branch, bodies} = compile_decision(module, branch, cnodes, bodies)
-            c = quote do
-              unquote(match) -> unquote(branch)
-            end
-            {c, bodies}
-          end)
-
-          body = quote location: :keep do
-            defp do_decide(unquote(name), var!(conn)) do
-              do_decide(case unquote(conn_match) do
-                unquote(handles |> List.flatten)
-              end, var!(conn))
-            end
-          end
-
-          {name, Map.put(bodies, name, body)}
         {:handler, status, content} ->
           handlers = Module.get_attribute(module, :handlers)
 
@@ -224,6 +202,13 @@ defmodule Wrangle.DecisionGraph do
     end
   end
 
+  defmacro decide(name, args) do
+    quote do
+      @decisions Map.put(@decisions, unquote(name),
+                                     unquote(Macro.escape(args[:do], unquote: true)))
+    end
+  end
+
   defmacro decision(name, consequent, alternate) do
     quote do
       branch unquote(name), unquote(name), unquote(consequent), unquote(alternate)
@@ -232,8 +217,7 @@ defmodule Wrangle.DecisionGraph do
 
   defmacro decision(name, consequent, alternate, args) do
     quote do
-      @decisions Map.put(@decisions, unquote(name),
-                                     unquote(Macro.escape(args[:do], unquote: true)))
+      decide unquote(name), unquote(args)
       branch unquote(name), unquote(name), unquote(consequent), unquote(alternate)
     end
   end
@@ -241,14 +225,6 @@ defmodule Wrangle.DecisionGraph do
   defmacro handler(name, status, content) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:handler, unquote(status), unquote(content)})
-    end
-  end
-
-  defmacro dispatch(name, conn_match, mapping) do
-    quote do
-      @nodes Map.put(@nodes, unquote(name),
-                      {:dispatch, unquote(Macro.escape(conn_match, unquote: true)),
-                                  unquote(Macro.escape(mapping, unquote: true))})
     end
   end
 
@@ -261,13 +237,6 @@ defmodule Wrangle.DecisionGraph do
   defmacro action(name, next) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:action, unquote(next)})
-    end
-  end
-
-  defmacro decide(name, args) do
-    quote do
-      @decisions Map.put(@decisions, unquote(name),
-                                     unquote(Macro.escape(args[:do], unquote: true)))
     end
   end
 
