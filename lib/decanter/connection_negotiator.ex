@@ -1,4 +1,4 @@
-defmodule Wrangle.ConnectionNegotiator do
+defmodule Decanter.ConnectionNegotiator do
 
   defp parse(:accept, part) do
     case Plug.Conn.Utils.media_type(part) do

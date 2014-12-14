@@ -1,4 +1,4 @@
-# Wrangle
+# Decanter
 
 Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, exposing as a Plug.
 
@@ -8,13 +8,13 @@ Experimental
 
 ## Why not just wrap cowboy_rest/webmachine?
 
-`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Wrangle sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
+`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Decanter sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
 
-Wrangle can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
+Decanter can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
 
 ## What about Phoenix?
 
-Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Wrangle for when operating outside of Phoenix.
+Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Decanter for when operating outside of Phoenix.
 
 ## Example
 
@@ -22,7 +22,7 @@ Port is still fairly direct, but the following shows the basic concepts of decis
 
 ```elixir
 defmodule UserResource do
-  use Wrangle
+  use Decanter
 
   plug :fetch_session
   plug :serve

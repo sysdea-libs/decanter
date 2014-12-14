@@ -1,5 +1,5 @@
-defmodule WrangleTest.R do
-  use Wrangle
+defmodule DecanterTest.R do
+  use Decanter
 
   plug :serve
 
@@ -23,8 +23,8 @@ defmodule WrangleTest.R do
   end
 end
 
-defmodule WrangleTest.Disabled do
-  use Wrangle
+defmodule DecanterTest.Disabled do
+  use Decanter
 
   plug :serve
 
@@ -32,7 +32,7 @@ defmodule WrangleTest.Disabled do
 end
 
 
-defmodule WrangleTest do
+defmodule DecanterTest do
   use ExUnit.Case
   use Plug.Test
 
@@ -47,11 +47,11 @@ defmodule WrangleTest do
   test "basics" do
     assert %Plug.Conn{status: 200,
                       resp_body: "HELLO"}
-           = test_conn(WrangleTest.R, :get, %{})
+           = test_conn(DecanterTest.R, :get, %{})
   end
 
   test "accept/charset" do
-    resp = test_conn(WrangleTest.R, :get,
+    resp = test_conn(DecanterTest.R, :get,
                       %{"accept" => "text/*",
                         "accept-charset" => "utf-8"})
     assert %Plug.Conn{status: 200,
@@ -59,7 +59,7 @@ defmodule WrangleTest do
     assert %{"ETag" => ~s("1635"),
              "Content-Type" => "text/html;charset=utf-8"} = Enum.into(resp.resp_headers, %{})
 
-    resp = test_conn(WrangleTest.R, :get,
+    resp = test_conn(DecanterTest.R, :get,
                       %{"accept" => "text/html",
                         "accept-charset" => "utf-8"})
     assert %Plug.Conn{status: 200,
@@ -67,7 +67,7 @@ defmodule WrangleTest do
     assert %{"ETag" => ~s("1635"),
              "Content-Type" => "text/html;charset=utf-8"} = Enum.into(resp.resp_headers, %{})
 
-    resp = test_conn(WrangleTest.R, :get,
+    resp = test_conn(DecanterTest.R, :get,
                       %{"accept" => "application/json",
                         "accept-charset" => "utf-8"})
     assert %Plug.Conn{status: 200,
@@ -77,43 +77,43 @@ defmodule WrangleTest do
 
     assert %Plug.Conn{status: 406,
                       resp_body: "No acceptable resource available."}
-           = test_conn(WrangleTest.R, :get, %{"accept" => "text/xml"})
+           = test_conn(DecanterTest.R, :get, %{"accept" => "text/xml"})
 
     assert %Plug.Conn{status: 406,
                       resp_body: "No acceptable resource available."}
-           = test_conn(WrangleTest.R, :get, %{"accept-charset" => "utf-919"})
+           = test_conn(DecanterTest.R, :get, %{"accept-charset" => "utf-919"})
 
   end
 
   test "last_modified" do
-    resp = test_conn(WrangleTest.R, :get, %{})
+    resp = test_conn(DecanterTest.R, :get, %{})
     assert %{"ETag" => ~s("1635"),
              "Last-Modified" => "Sat, 13 Dec 2014 11:36:32 GMT"} = Enum.into(resp.resp_headers, %{})
 
     assert %Plug.Conn{status: 304,
                       resp_body: ""}
-           = test_conn(WrangleTest.R, :get,
+           = test_conn(DecanterTest.R, :get,
                        %{"if-modified-since" => "Sat, 13 Dec 2014 11:36:32 GMT"})
 
     assert %Plug.Conn{status: 200,
                       resp_body: "HELLO"}
-           = test_conn(WrangleTest.R, :get,
+           = test_conn(DecanterTest.R, :get,
                        %{"if-modified-since" => "Sat, 13 Dec 2014 11:36:00 GMT"})
   end
 
   test "etags" do
     assert %Plug.Conn{status: 304,
                       resp_body: ""}
-           = test_conn(WrangleTest.R, :get, %{"if-none-match" => ~s("1635")})
+           = test_conn(DecanterTest.R, :get, %{"if-none-match" => ~s("1635")})
 
     assert %Plug.Conn{status: 200,
                       resp_body: "HELLO"}
-           = test_conn(WrangleTest.R, :get, %{"if-none-match" => ~s("1636")})
+           = test_conn(DecanterTest.R, :get, %{"if-none-match" => ~s("1636")})
   end
 
   test "service_available?" do
     assert %Plug.Conn{status: 503,
                       resp_body: "Service not available."}
-           = test_conn(WrangleTest.Disabled, :get, %{})
+           = test_conn(DecanterTest.Disabled, :get, %{})
   end
 end

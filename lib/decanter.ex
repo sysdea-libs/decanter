@@ -1,12 +1,12 @@
-defmodule Wrangle do
+defmodule Decanter do
   defmacro __using__(_) do
     quote location: :keep do
-      @before_compile Wrangle
+      @before_compile Decanter
 
-      use Wrangle.DecisionGraph
+      use Decanter.DecisionGraph
       use Plug.Builder
 
-      require Wrangle.ConnectionNegotiator, as: ConNeg
+      require Decanter.ConnectionNegotiator, as: ConNeg
 
       def init(opts) do
         opts

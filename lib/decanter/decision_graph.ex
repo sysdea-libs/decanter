@@ -1,8 +1,8 @@
-defmodule Wrangle.DecisionGraph do
+defmodule Decanter.DecisionGraph do
   defmacro __using__(_) do
     quote location: :keep do
-      import Wrangle.DecisionGraph
-      @before_compile Wrangle.DecisionGraph
+      import Decanter.DecisionGraph
+      @before_compile Decanter.DecisionGraph
 
       @nodes %{}
       @decisions %{}
