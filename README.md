@@ -30,7 +30,7 @@ defmodule UserResource do
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
   # Decision points
-  decide :authorized? do
+  decide :allowed? do
     Map.has_key?(get_session(conn), :user)
   end
 
