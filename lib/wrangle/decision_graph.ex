@@ -42,37 +42,41 @@ defmodule Wrangle.DecisionGraph do
   end
 
   defp visit_nodes(module, name, nodes, acc) do
-    case nodes[name] do
-      {:decision, consequent, alternate} ->
-        case Module.get_attribute(module, :decisions)[name] do
-          true -> visit_nodes(module, consequent, nodes, acc)
-          false -> visit_nodes(module, alternate, nodes, acc)
-          _body ->
-            acc = visit_nodes(module, consequent, nodes, acc)
-            acc = visit_nodes(module, alternate, nodes, acc)
-            if acc[name] do
-              Map.put(acc, name, acc[name] + 1)
-            else
-              Map.put(acc, name, 1)
-            end
-        end
-      {:dispatch, _conn_match, handles} ->
-        Enum.reduce(handles, acc, fn([_, branch], acc) ->
-          visit_nodes(module, branch, nodes, acc)
-        end)
-      {:handler, _status, _content} ->
-        if acc[name] do
-          Map.put(acc, name, acc[name] + 1)
-        else
-          Map.put(acc, name, 1)
-        end
-      {:action, next} ->
-        acc = visit_nodes(module, next, nodes, acc)
-        if acc[name] do
-          Map.put(acc, name, acc[name] + 1)
-        else
-          Map.put(acc, name, 1)
-        end
+    if acc[name] do
+      Map.put(acc, name, acc[name] + 1)
+    else
+      case nodes[name] do
+        {:decision, consequent, alternate} ->
+          case Module.get_attribute(module, :decisions)[name] do
+            true -> visit_nodes(module, consequent, nodes, acc)
+            false -> visit_nodes(module, alternate, nodes, acc)
+            _body ->
+              acc = visit_nodes(module, consequent, nodes, acc)
+              acc = visit_nodes(module, alternate, nodes, acc)
+              if acc[name] do
+                Map.put(acc, name, acc[name] + 1)
+              else
+                Map.put(acc, name, 1)
+              end
+          end
+        {:dispatch, _conn_match, handles} ->
+          Enum.reduce(handles, acc, fn([_, branch], acc) ->
+            visit_nodes(module, branch, nodes, acc)
+          end)
+        {:handler, _status, _content} ->
+          if acc[name] do
+            Map.put(acc, name, acc[name] + 1)
+          else
+            Map.put(acc, name, 1)
+          end
+        {:action, next} ->
+          acc = visit_nodes(module, next, nodes, acc)
+          if acc[name] do
+            Map.put(acc, name, acc[name] + 1)
+          else
+            Map.put(acc, name, 1)
+          end
+      end
     end
   end
 
@@ -89,7 +93,7 @@ defmodule Wrangle.DecisionGraph do
               {consequent, bodies} = compile_decision(module, consequent, cnodes, bodies)
               {alternate, bodies} = compile_decision(module, alternate, cnodes, bodies)
 
-              if counts[name] == counts[consequent] do
+              if counts[consequent] == 1 do
                 {:defp, _, [{:do_decide, _, _},[{:do, x}]]} = bodies[consequent]
                 consequent_body = x
                 bodies = Map.delete(bodies, consequent)
@@ -99,7 +103,7 @@ defmodule Wrangle.DecisionGraph do
                 end
               end
 
-              if counts[name] == counts[alternate] do
+              if counts[alternate] == 1 do
                 {:defp, _, [{:do_decide, _, _},[{:do, x}]]} = bodies[alternate]
                 alternate_body = x
                 bodies = Map.delete(bodies, alternate)
