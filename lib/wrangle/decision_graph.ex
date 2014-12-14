@@ -47,7 +47,7 @@ defmodule Wrangle.DecisionGraph do
         case Module.get_attribute(module, :decisions)[name] do
           true -> visit_nodes(module, consequent, nodes, acc)
           false -> visit_nodes(module, alternate, nodes, acc)
-          body ->
+          _body ->
             acc = visit_nodes(module, consequent, nodes, acc)
             acc = visit_nodes(module, alternate, nodes, acc)
             if acc[name] do
@@ -56,17 +56,18 @@ defmodule Wrangle.DecisionGraph do
               Map.put(acc, name, 1)
             end
         end
-      {:dispatch, conn_match, handles} ->
+      {:dispatch, _conn_match, handles} ->
         Enum.reduce(handles, acc, fn([_, branch], acc) ->
           visit_nodes(module, branch, nodes, acc)
         end)
-      {:handler, status, content} ->
+      {:handler, _status, _content} ->
         if acc[name] do
           Map.put(acc, name, acc[name] + 1)
         else
           Map.put(acc, name, 1)
         end
       {:action, next} ->
+        acc = visit_nodes(module, next, nodes, acc)
         if acc[name] do
           Map.put(acc, name, acc[name] + 1)
         else
