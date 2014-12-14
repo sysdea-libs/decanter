@@ -267,40 +267,7 @@ defmodule Wrangle do
 
       # entry handler
 
-      entry_point :service_available? do
-        mapped_headers = Enum.into(var!(conn).req_headers, %{})
-
-        # root specifies the actual root handler once ellision has taken place
-        conn = do_decide(var!(root), %{
-          var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
-        })
-
-        if etag = conn.assigns[:etag] do
-          conn = put_resp_header(conn, "ETag", etag)
-        end
-
-        if lm = conn.assigns[:last_modified] do
-          conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
-        end
-
-        if media_type = conn.assigns[:media_type] do
-          if charset = conn.assigns[:charset] do
-            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
-          else
-            conn = put_resp_header(conn, "Content-Type", media_type)
-          end
-        end
-
-        if language = conn.assigns[:language] do
-          conn = put_resp_header(conn, "Content-Language", language)
-        end
-
-        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
-          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
-        end
-
-        conn
-      end
+      @entry_point :service_available?
 
       # static properties
 
@@ -365,6 +332,41 @@ defmodule Wrangle do
         decide :supports_last_modified?, do: true
       else
         decide :supports_last_modified?, do: false
+      end
+
+      def serve(conn, opts) do
+        mapped_headers = Enum.into(conn.req_headers, %{})
+
+        # root specifies the actual root handler once ellision has taken place
+        conn = do_decide(@entry_point, %{
+          conn | assigns: Map.merge(conn.assigns, %{headers: mapped_headers})
+        })
+
+        if etag = conn.assigns[:etag] do
+          conn = put_resp_header(conn, "ETag", etag)
+        end
+
+        if lm = conn.assigns[:last_modified] do
+          conn = put_resp_header(conn, "Last-Modified", :httpd_util.rfc1123_date(lm) |> to_string)
+        end
+
+        if media_type = conn.assigns[:media_type] do
+          if charset = conn.assigns[:charset] do
+            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
+          else
+            conn = put_resp_header(conn, "Content-Type", media_type)
+          end
+        end
+
+        if language = conn.assigns[:language] do
+          conn = put_resp_header(conn, "Content-Language", language)
+        end
+
+        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
+          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
+        end
+
+        conn
       end
     end
   end

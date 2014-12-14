@@ -20,25 +20,26 @@ defmodule Wrangle.DecisionGraph do
 
   defmacro __before_compile__(env) do
     nodes = Module.get_attribute(env.module, :nodes)
-    {entry_name, entry_body} = Module.get_attribute(env.module, :entry_point)
+    entry_name = Module.get_attribute(env.module, :entry_point)
 
     counts = visit_nodes(env.module, entry_name, nodes, %{})
 
-    {entry_name, r} = compile_decision(env.module, entry_name, {counts, nodes}, %{})
+    {rewritten_entry_name, r} = compile_decision(env.module, entry_name, {counts, nodes}, %{})
     # IO.inspect {"done", entry_name}
     fn_bodies = for {_, body} <- r do
       # IO.puts Macro.to_string(body)
       body
     end
 
-    serve = quote do
-      def serve(var!(conn), opts) do
-        var!(root) = unquote(entry_name)
-        unquote(entry_body)
-      end
+    if entry_name != rewritten_entry_name do
+      fn_bodies = [quote do
+        defp do_decide(unquote(entry_name), ctx) do
+          do_decide(unquote(rewritten_entry_name), ctx)
+        end
+      end|fn_bodies]
     end
 
-    [fn_bodies, serve]
+    fn_bodies
   end
 
   defp visit_nodes(module, name, nodes, acc) do
@@ -225,12 +226,6 @@ defmodule Wrangle.DecisionGraph do
   defmacro handler(name, status, content) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:handler, unquote(status), unquote(content)})
-    end
-  end
-
-  defmacro entry_point(name, args) do
-    quote do
-      @entry_point {unquote(name), unquote(Macro.escape(args[:do], unquote: true))}
     end
   end
 
