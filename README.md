@@ -18,39 +18,58 @@ Phoenix handles some of the format negotiation/body encoding issues, so the idea
 
 ## Example
 
-Port is still fairly direct, so the following is likely to improve:
+Port is still fairly direct, but the following shows the basic concepts of decision points to customise resource handling:
 
 ```elixir
-defmodule HelloResource do
+defmodule UserResource do
   use Wrangle
 
   plug :fetch_session
   plug :serve
 
-  # static properties
+  # Stub collection
+  @my_values %{"chris": "Chris Spencer",
+               "ben": "Ben Smith"}
+
+  # Static properties
+  # Could defer to Phoenix format/accepts handling
   @available_media_types ["text/html", "application/json"]
 
-  # dynamic properties
+  # Dynamic properties
   def etag(_conn), do: 1635
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
-  # decision points
+  # Decision points
   decide :authorized? do
     Map.has_key?(get_session(conn), :user)
   end
 
-  # handlers
+  decide exists? do
+    # Would defer to something like Plug.Router ordinarily
+    ["user", id] = conn.path_info
+    case @my_values[id] do
+      nil -> false
+      user -> {true, assign(conn, :user, user)}
+    end
+  end
+
+  # Return a representation after post/put/patch
+  decide :respond_with_entity?, do: true
+  # Only allow put to an existing key
+  decide :can_put_to_missing?, do: false
+
+  # Handlers
   handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
-    "<h1>HELLO</h1>"
+    "<h1>#{conn.assigns.user}</h1>"
   end
 
   handle :ok, %Plug.Conn{assigns: %{media_type: "application/json"}} do
-    ~s({"message": "HELLO"})
+    ~s({"name": "#{conn.assigns.user}"})
   end
 
-  # actions
-  def post!(conn) do
-    # MyRepo.update(...)
+  # Actions
+  def put!(conn) do
+    # MyRepo.update(@my_values ...)
   end
 end
 ```
