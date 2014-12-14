@@ -46,8 +46,8 @@ defmodule Wrangle.DecisionGraph do
       Map.put(acc, name, acc[name] + 1)
     else
       case nodes[name] do
-        {:decision, consequent, alternate} ->
-          case Module.get_attribute(module, :decisions)[name] do
+        {:branch, test, consequent, alternate} ->
+          case Module.get_attribute(module, :decisions)[test] do
             true -> visit_nodes(module, consequent, nodes, acc)
             false -> visit_nodes(module, alternate, nodes, acc)
             _body ->
@@ -85,8 +85,8 @@ defmodule Wrangle.DecisionGraph do
       {name, bodies}
     else
       case nodes[name] do
-        {:decision, consequent, alternate} ->
-          case Module.get_attribute(module, :decisions)[name] do
+        {:branch, test, consequent, alternate} ->
+          case Module.get_attribute(module, :decisions)[test] do
             true -> compile_decision(module, consequent, cnodes, bodies)
             false -> compile_decision(module, alternate, cnodes, bodies)
             body ->
@@ -218,9 +218,15 @@ defmodule Wrangle.DecisionGraph do
     end
   end
 
+  defmacro branch(name, test, consequent, alternate) do
+    quote do
+      @nodes Map.put(@nodes, unquote(name), {:branch, unquote(test), unquote(consequent), unquote(alternate)})
+    end
+  end
+
   defmacro decision(name, consequent, alternate) do
     quote do
-      @nodes Map.put(@nodes, unquote(name), {:decision, unquote(consequent), unquote(alternate)})
+      branch unquote(name), unquote(name), unquote(consequent), unquote(alternate)
     end
   end
 
@@ -228,7 +234,7 @@ defmodule Wrangle.DecisionGraph do
     quote do
       @decisions Map.put(@decisions, unquote(name),
                                      unquote(Macro.escape(args[:do], unquote: true)))
-      @nodes Map.put(@nodes, unquote(name), {:decision, unquote(consequent), unquote(alternate)})
+      branch unquote(name), unquote(name), unquote(consequent), unquote(alternate)
     end
   end
 

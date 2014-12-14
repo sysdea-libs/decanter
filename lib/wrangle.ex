@@ -80,26 +80,27 @@ defmodule Wrangle do
           {true, %{etag: etag}}
         end
       end
-      decision :_sup_etag_ok?, :annotate_etag, :handle_ok
-      decision :annotate_last_modified, :_sup_etag_ok?, :_sup_etag_ok? do
+      branch :annotate_etag?, :supports_etag?, :annotate_etag, :handle_ok
+      decision :annotate_last_modified, :annotate_etag?, :annotate_etag? do
         if var!(conn).assigns[:last_modified] do
           true
         else
           {true, %{last_modified: last_modified(var!(conn))}}
         end
       end
-      decision :_sup_last_modified_ok?, :annotate_last_modified, :_sup_etag_ok?
+      branch :annotate_last_modified?, :supports_last_modified?,
+                                       :annotate_last_modified, :annotate_etag?
 
       # decision graph
 
-      decision :multiple_representations?, :handle_multiple_representations, :_sup_last_modified_ok?
+      decision :multiple_representations?, :handle_multiple_representations, :annotate_last_modified?
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
       decision :new?, :handle_created, :respond_with_entity?
       decision :post_redirect?, :handle_see_other, :new?
       decision :can_post_to_missing?, :post!, :handle_not_found
-      decision :post_to_missing?, :can_post_to_missing?, :handle_not_found
+      branch :post_to_missing?, :method_post?, :can_post_to_missing?, :handle_not_found
       decision :can_post_to_gone?, :post!, :handle_gone
-      decision :post_to_gone?, :can_post_to_gone?, :handle_not_found
+      branch :post_to_gone?, :method_post?, :can_post_to_gone?, :handle_not_found
       decision :moved_temporarily?, :handle_moved_temporarily, :post_to_gone?
       decision :moved_permanently?, :handle_moved_permanently, :moved_temporarily?
       decision :existed?, :moved_permanently?, :post_to_missing?
@@ -109,8 +110,8 @@ defmodule Wrangle do
       decision :method_put?, :put_to_different_url?, :existed?
       decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?
       decision :if_none_match?, :handle_not_modified, :handle_precondition_failed
-      decision :put_to_existing?, :conflict?, :multiple_representations?
-      decision :post_to_existing?, :post!, :put_to_existing?
+      branch :put_to_existing?, :method_put?, :conflict?, :multiple_representations?
+      branch :post_to_existing?, :method_post?, :post!, :put_to_existing?
       decision :delete_enacted?, :respond_with_entity?, :handle_accepted
       decision :method_patch?, :patch!, :post_to_existing?
       decision :method_delete?, :delete!, :method_patch?
@@ -125,8 +126,9 @@ defmodule Wrangle do
             end
         end
       end
-      decision :_sup_last_modified_since?, :modified_since?, :method_delete?
-      decision :if_modified_since_valid_date?, :_sup_last_modified_since?, :method_delete? do
+      branch :last_modified_for_modified_since?, :supports_last_modified?,
+                                                 :modified_since?, :method_delete?
+      decision :if_modified_since_valid_date?, :last_modified_for_modified_since?, :method_delete? do
         datestring = to_char_list var!(conn).assigns.headers["if-modified-since"]
         case :httpd_util.convert_request_date(datestring) do
           :bad_date -> false
@@ -138,8 +140,9 @@ defmodule Wrangle do
         etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"], %{etag: etag}}
       end
-      decision :_sup_etag_if_none?, :etag_matches_for_if_none?, :if_modified_since_exists?
-      decision :if_none_match_star?, :if_none_match?, :_sup_etag_if_none?
+      branch :etag_for_if_none?, :supports_etag?,
+                                 :etag_matches_for_if_none?, :if_modified_since_exists?
+      decision :if_none_match_star?, :if_none_match?, :etag_for_if_none?
       decision :if_none_match_exists?, :if_none_match_star?, :if_modified_since_exists?
       decision :unmodified_since?, :handle_precondition_failed, :if_none_match_exists? do
         case last_modified(var!(conn)) do
@@ -152,8 +155,9 @@ defmodule Wrangle do
             end
         end
       end
-      decision :_sup_last_modified_since_exists?, :unmodified_since?, :handle_precondition_failed
-      decision :if_unmodified_since_valid_date?, :_sup_last_modified_since_exists?, :if_none_match_exists? do
+      branch :last_modified_for_since_exists?, :supports_last_modified?,
+                                               :unmodified_since?, :handle_precondition_failed
+      decision :if_unmodified_since_valid_date?, :last_modified_for_since_exists?, :if_none_match_exists? do
         datestring = to_char_list var!(conn).assigns.headers["if-unmodified-since"]
         case :httpd_util.convert_request_date(datestring) do
           :bad_date -> false
@@ -165,8 +169,9 @@ defmodule Wrangle do
         etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-match"], %{etag: etag}}
       end
-      decision :_sup_etag_if_match?, :etag_matches_for_if_match?, :handle_precondition_failed
-      decision :if_match_star?, :if_unmodified_since_exists?, :_sup_etag_if_match?
+      branch :etag_for_if_match?, :supports_etag?,
+                                  :etag_matches_for_if_match?, :handle_precondition_failed
+      decision :if_match_star?, :if_unmodified_since_exists?, :etag_for_if_match?
       decision :if_match_exists?, :if_match_star?, :if_unmodified_since_exists?
       decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
       decision :processable?, :exists?, :handle_unprocessable_entity
@@ -254,14 +259,11 @@ defmodule Wrangle do
       decide :if_unmodified_since_exists?, do: has_header(var!(conn), "if-unmodified-since")
       decide :is_options?, do: var!(conn).method == "OPTIONS"
 
-      # Internal decision points that are automatically blanked
+      # Internal decision points that are automatically blanked when unsupported
       decide :method_delete?, do: var!(conn).method == "DELETE"
       decide :method_patch?, do: var!(conn).method == "PATCH"
-      decide :put_to_existing?, do: var!(conn).method == "PUT"
       decide :method_put?, do: var!(conn).method == "PUT"
-      decide :post_to_gone?, do: var!(conn).method == "POST"
-      decide :post_to_existing?, do: var!(conn).method == "POST"
-      decide :post_to_missing?, do: var!(conn).method == "POST"
+      decide :method_post?, do: var!(conn).method == "POST"
 
       # entry handler
 
@@ -327,15 +329,12 @@ defmodule Wrangle do
       if Module.defines?(__MODULE__, {:post!, 1}) do
         methods = ["POST"|methods]
       else
-        decide :post_to_gone?, do: false
-        decide :post_to_existing?, do: false
-        decide :post_to_missing?, do: false
+        decide :method_post?, do: false
       end
 
       if Module.defines?(__MODULE__, {:put!, 1}) do
         methods = ["PUT"|methods]
       else
-        decide :put_to_existing?, do: false
         decide :method_put?, do: false
       end
 
@@ -348,6 +347,7 @@ defmodule Wrangle do
       unless Module.get_attribute(__MODULE__, :allowed_methods) do
         @allowed_methods methods
       end
+
 
       # Short circuit ACCEPT checks based on implemented static properties
       unless Module.get_attribute(__MODULE__, :available_languages) do
@@ -365,23 +365,15 @@ defmodule Wrangle do
 
       # Add flags for deciding on etag/last_modified checks
       if Module.defines?(__MODULE__, {:etag, 1}) do
-        decide :_sup_etag_if_match?, do: true
-        decide :_sup_etag_ok?, do: true
-        decide :_sup_etag_if_none?, do: true
+        decide :supports_etag?, do: true
       else
-        decide :_sup_etag_if_match?, do: false
-        decide :_sup_etag_ok?, do: false
-        decide :_sup_etag_if_none?, do: false
+        decide :supports_etag?, do: false
       end
 
       if Module.defines?(__MODULE__, {:last_modified, 1}) do
-        decide :_sup_last_modified_since_exists?, do: true
-        decide :_sup_last_modified_ok?, do: true
-        decide :_sup_last_modified_since?, do: true
+        decide :supports_last_modified?, do: true
       else
-        decide :_sup_last_modified_since_exists?, do: false
-        decide :_sup_last_modified_ok?, do: false
-        decide :_sup_last_modified_since?, do: false
+        decide :supports_last_modified?, do: false
       end
     end
   end
