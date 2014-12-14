@@ -67,6 +67,7 @@ defmodule Wrangle do
       action :patch!, :respond_with_entity?
       action :put!, :new?
       action :delete!, :delete_enacted?
+      action :options!, :handle_options
 
       # GET response annotations
       # TODO: This is wrong. Should put in the entry_point wrapper.
@@ -206,8 +207,8 @@ defmodule Wrangle do
           {false, %{media_type: ConNeg.find_best(:accept, "*/*", @available_media_types)}}
         end
       end
-      decision :is_options?, :handle_options, :accept_exists?
-      decision :valid_entity_length?, :is_options?, :handle_request_entity_too_large
+      decision :method_options?, :options!, :accept_exists?
+      decision :valid_entity_length?, :method_options?, :handle_request_entity_too_large
       decision :known_content_type?, :valid_entity_length?, :handle_unsupported_media_type
       decision :valid_content_header?, :known_content_type?, :handle_not_implemented
       decision :allowed?, :valid_content_header?, :handle_forbidden
@@ -257,13 +258,13 @@ defmodule Wrangle do
       decide :if_none_match_exists?, do: has_header(var!(conn), "if-none-match")
       decide :if_none_match_star?, do: var!(conn).assigns.headers["if-none-match"] == "*"
       decide :if_unmodified_since_exists?, do: has_header(var!(conn), "if-unmodified-since")
-      decide :is_options?, do: var!(conn).method == "OPTIONS"
 
       # Internal decision points that are automatically blanked when unsupported
       decide :method_delete?, do: var!(conn).method == "DELETE"
       decide :method_patch?, do: var!(conn).method == "PATCH"
       decide :method_put?, do: var!(conn).method == "PUT"
       decide :method_post?, do: var!(conn).method == "POST"
+      decide :method_options?, do: var!(conn).method == "OPTIONS"
 
       # entry handler
 
@@ -342,6 +343,12 @@ defmodule Wrangle do
         methods = ["PATCH"|methods]
       else
         decide :method_patch?, do: false
+      end
+
+      if Module.defines?(__MODULE__, {:options!, 1}) do
+        methods = ["OPTIONS"|methods]
+      else
+        decide :method_options?, do: false
       end
 
       unless Module.get_attribute(__MODULE__, :allowed_methods) do
