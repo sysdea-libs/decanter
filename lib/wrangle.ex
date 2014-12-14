@@ -283,21 +283,25 @@ defmodule Wrangle do
       quote do
         if etag = var!(conn).assigns[:etag] || format_etag(etag var!(conn)) do
           var!(conn) = put_resp_header(var!(conn), "ETag", etag)
+        else
+          var!(conn)
         end
       end
     else
-      nil
+      quote do var!(conn) end
     end
 
     last_modified_check = if supports_last_modified do
       quote do
         if last_modified = var!(conn).assigns[:last_modified] || last_modified(var!(conn)) do
-          var!(conn) = put_resp_header(var!(conn), "Last-Modified",
-                                       :httpd_util.rfc1123_date(last_modified) |> to_string)
+          put_resp_header(var!(conn), "Last-Modified",
+                          :httpd_util.rfc1123_date(last_modified) |> to_string)
+        else
+          var!(conn)
         end
       end
     else
-      nil
+      quote do var!(conn) end
     end
 
     quote do
@@ -333,26 +337,26 @@ defmodule Wrangle do
           var!(conn) | assigns: Map.merge(var!(conn).assigns, %{headers: mapped_headers})
         })
 
-        unquote(etag_check)
-        unquote(last_modified_check)
+        conn = unquote(etag_check)
+        conn = unquote(last_modified_check)
 
-        if media_type = var!(conn).assigns[:media_type] do
-          if charset = var!(conn).assigns[:charset] do
-            var!(conn) = put_resp_header(var!(conn), "Content-Type", "#{media_type};charset=#{charset}")
+        if media_type = conn.assigns[:media_type] do
+          if charset = conn.assigns[:charset] do
+            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
           else
-            var!(conn) = put_resp_header(var!(conn), "Content-Type", media_type)
+            conn = put_resp_header(conn, "Content-Type", media_type)
           end
         end
 
-        if language = var!(conn).assigns[:language] do
-          var!(conn) = put_resp_header(var!(conn), "Content-Language", language)
+        if language = conn.assigns[:language] do
+          conn = put_resp_header(conn, "Content-Language", language)
         end
 
-        if var!(conn).assigns[:encoding] && var!(conn).assigns[:encoding] != "identity" do
-          var!(conn) = put_resp_header(var!(conn), "Content-Encoding", var!(conn).assigns[:encoding])
+        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
+          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
         end
 
-        var!(conn)
+        conn
       end
     end
   end
