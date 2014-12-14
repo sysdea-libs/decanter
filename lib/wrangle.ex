@@ -285,7 +285,7 @@ defmodule Wrangle do
       @available_charsets ["utf-8"]
       # @available_encodings ["identity"]
       # @available_languages ["*"]
-      @allowed_methods ["POST", "GET"]
+      # @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 
       # dynamic properties
@@ -303,23 +303,39 @@ defmodule Wrangle do
   defmacro __before_compile__(env) do
     quote do
       # Short circuit METHOD checks based on implemented action methods
-      unless Module.defines?(__MODULE__, {:delete!, 1}) do
+      # Auto-generate an allowed_methods property if missing
+
+      methods = ["GET"]
+
+      if Module.defines?(__MODULE__, {:delete!, 1}) do
+        methods = ["DELETE"|methods]
+      else
         decide :method_delete?, do: false
       end
 
-      unless Module.defines?(__MODULE__, {:post!, 1}) do
+      if Module.defines?(__MODULE__, {:post!, 1}) do
+        methods = ["POST"|methods]
+      else
         decide :post_to_gone?, do: false
         decide :post_to_existing?, do: false
         decide :post_to_missing?, do: false
       end
 
-      unless Module.defines?(__MODULE__, {:put!, 1}) do
+      if Module.defines?(__MODULE__, {:put!, 1}) do
+        methods = ["PUT"|methods]
+      else
         decide :put_to_existing?, do: false
         decide :method_put?, do: false
       end
 
-      unless Module.defines?(__MODULE__, {:patch!, 1}) do
+      if Module.defines?(__MODULE__, {:patch!, 1}) do
+        methods = ["PATCH"|methods]
+      else
         decide :method_patch?, do: false
+      end
+
+      unless Module.get_attribute(__MODULE__, :allowed_methods) do
+        @allowed_methods methods
       end
 
       # Short circuit ACCEPT checks based on implemented static properties

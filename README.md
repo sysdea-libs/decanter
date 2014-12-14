@@ -29,7 +29,6 @@ defmodule HelloResource do
 
   # static properties
   @available_media_types ["text/html", "application/json"]
-  @allowed_methods ["POST", "GET"] # would be nice to auto-detect this
 
   # dynamic properties
   def etag(_conn), do: 1635
@@ -59,7 +58,7 @@ end
 ## TODO
 
 - [x] Inline unique decision paths.
-- [ ] Detect allowed_methods from action definitions?
+- [x] Detect allowed_methods from action definitions?
 - [ ] AOT analyse static properties rather than parsing on each request?
 - [ ] Complete test suite.
 - [ ] Documentation.
