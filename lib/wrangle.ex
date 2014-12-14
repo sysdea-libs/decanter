@@ -102,9 +102,7 @@ defmodule Wrangle do
             end
         end
       end
-      branch :last_modified_for_modified_since?, :supports_last_modified?,
-                                                 :modified_since?, :method_delete?
-      decision :if_modified_since_valid_date?, :last_modified_for_modified_since?, :method_delete? do
+      decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
         datestring = to_char_list var!(conn).assigns.headers["if-modified-since"]
         case :httpd_util.convert_request_date(datestring) do
           :bad_date -> false
@@ -112,15 +110,17 @@ defmodule Wrangle do
         end
       end
       decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
-      decision :etag_matches_for_if_none?, :if_none_match?, :if_modified_since_exists? do
+      branch :last_modified_for_modified_since_exists?, :supports_last_modified?,
+                                                        :if_modified_since_exists?, :method_delete?
+      decision :etag_matches_for_if_none?, :if_none_match?, :last_modified_for_modified_since_exists? do
         etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"],
          assign(var!(conn), :etag, etag)}
       end
       branch :etag_for_if_none?, :supports_etag?,
-                                 :etag_matches_for_if_none?, :if_modified_since_exists?
+                                 :etag_matches_for_if_none?, :last_modified_for_modified_since_exists?
       decision :if_none_match_star?, :if_none_match?, :etag_for_if_none?
-      decision :if_none_match_exists?, :if_none_match_star?, :if_modified_since_exists?
+      decision :if_none_match_exists?, :if_none_match_star?, :last_modified_for_modified_since_exists?
       decision :unmodified_since?, :handle_precondition_failed, :if_none_match_exists? do
         case last_modified(var!(conn)) do
           nil -> true
