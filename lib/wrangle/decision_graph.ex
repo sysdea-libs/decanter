@@ -92,8 +92,9 @@ defmodule Wrangle.DecisionGraph do
             body ->
               {consequent, bodies} = compile_decision(module, consequent, cnodes, bodies)
               {alternate, bodies} = compile_decision(module, alternate, cnodes, bodies)
+              same_path = consequent == alternate
 
-              if counts[consequent] == 1 do
+              if counts[consequent] == 1 || (same_path && counts[consequent] == 2) do
                 {:defp, _, [{:do_decide, _, _},[{:do, x}]]} = bodies[consequent]
                 consequent_body = x
                 bodies = Map.delete(bodies, consequent)
@@ -120,8 +121,21 @@ defmodule Wrangle.DecisionGraph do
                 _ -> :case
               end
 
-              body = case strategy do
-                :if ->
+              body = case {same_path, strategy} do
+                {true, :if} ->
+                  quote location: :keep do
+                    defp do_decide(unquote(name), var!(conn)) do
+                      unquote(consequent_body)
+                    end
+                  end
+                {true, :case} ->
+                  quote location: :keep do
+                    defp do_decide(unquote(name), var!(conn)) do
+                      {_, var!(conn)} = handle_decision(var!(conn), unquote(body))
+                      unquote(consequent_body)
+                    end
+                  end
+                {false, :if} ->
                   quote location: :keep do
                     defp do_decide(unquote(name), var!(conn)) do
                       if unquote(body) do
@@ -131,7 +145,7 @@ defmodule Wrangle.DecisionGraph do
                       end
                     end
                   end
-                :case ->
+                {false, :case} ->
                   quote location: :keep do
                     defp do_decide(unquote(name), var!(conn)) do
                       case handle_decision(var!(conn), unquote(body)) do
