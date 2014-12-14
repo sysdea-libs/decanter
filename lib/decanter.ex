@@ -43,7 +43,7 @@ defmodule Decanter do
 
       handler :handle_malformed, 400, "Bad request."
       handler :handle_unauthorized, 401, "Not authorized."
-      handler :handle_forbidden, 403, "Forbidden"
+      handler :handle_forbidden, 403, "Forbidden."
       handler :handle_not_found, 404, "Resource not found."
       handler :handle_method_not_allowed, 405, "Method not allowed."
       handler :handle_not_acceptable, 406, "No acceptable resource available."
@@ -206,9 +206,7 @@ defmodule Decanter do
       decide :existed?, do: false
       decide :exists?, do: true
       decide :known_content_type?, do: true
-      decide :known_method?, do: var!(conn).method in @known_methods
       decide :malformed?, do: false
-      decide :method_allowed?, do: var!(conn).method in @allowed_methods
       decide :moved_permanently?, do: false
       decide :moved_temporarily?, do: false
       decide :multiple_representations?, do: false
@@ -223,6 +221,8 @@ defmodule Decanter do
       decide :valid_entity_length?, do: true
 
       # simple but only internally useful
+      decide :known_method?, do: var!(conn).method in @known_methods
+      decide :method_allowed?, do: var!(conn).method in @allowed_methods
       decide :accept_charset_exists?, do: has_header(var!(conn), "accept-charset")
       decide :accept_encoding_exists?, do: has_header(var!(conn), "accept-encoding")
       decide :accept_language_exists?, do: has_header(var!(conn), "accept-language")

@@ -10,17 +10,17 @@ defmodule DecanterTest do
     end
   end
 
-  def test_conn(module, method, headers) do
+  def test_conn(module, method, headers, assigns) do
     c = Enum.reduce(headers, conn(method, "/"), fn ({k, v}, conn) ->
       put_req_header(conn, k, v)
     end)
 
-    apply(module, :call, [c, nil])
+    apply(module, :call, [%{c | assigns: assigns}, nil])
   end
 
-  defmacro request(module, method, headers) do
+  defmacro request(module, method, headers, assigns \\ Macro.escape(%{})) do
     quote do
-      resp = test_conn(unquote(module), unquote(method), unquote(headers))
+      resp = test_conn(unquote(module), unquote(method), unquote(headers), unquote(assigns))
       %{resp | resp_headers: Enum.into(resp.resp_headers, %{})}
     end
   end
