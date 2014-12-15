@@ -131,11 +131,10 @@ defmodule Decanter do
       decision :if_match_exists?, :if_match_star?, :if_unmodified_since_exists?
       decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
       decision :processable?, :exists?, :handle_unprocessable_entity
-      # TODO: not right treatment of identity when identity;q=0
       decision :encoding_available?, :processable?, :handle_not_acceptable do
         encoding = ConNeg.find_best(:encoding,
                                     var!(conn).assigns.headers["accept-encoding"],
-                                    @available_encodings) || "identity"
+                                    @available_encodings)
         {true, assign(var!(conn), :encoding, encoding)}
       end
       decision :accept_encoding_exists?, :encoding_available?, :processable?

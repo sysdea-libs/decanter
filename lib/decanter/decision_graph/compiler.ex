@@ -83,14 +83,11 @@ defmodule Decanter.DecisionGraph.Compiler do
                 alternate_body = {:call, alternate}
               end
 
-              # TODO: can this detection be cleaned up?
-              # has_header is internal helper, check_setting is from tests
               strategy = case body do
-                {:==, _, _} -> :if
-                {:in, _, _} -> :if
-                {:has_header, _, _} -> :if
-                {:check_setting, _, _} -> :if
-                _ -> :case
+                {:if, _, _} -> :case
+                {:__block__, _, _} -> :case
+                {:{}, _, _} -> :case
+                _ -> :if
               end
 
               body = case {same_path, strategy} do

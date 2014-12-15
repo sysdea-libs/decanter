@@ -165,8 +165,7 @@ Released under the MIT License. Initial decision graph structure and content neg
 ## TODO
 
 - [x] Inline unique decision paths.
-- [x] Detect allowed_methods from action definitions?
-- [ ] AOT analyse static properties rather than parsing on each request?
+- [x] Detect allowed_methods from action definitions
 - [x] Options/Vary header construction
 - [ ] Multi language accepts
 - [ ] Complete test suite.
