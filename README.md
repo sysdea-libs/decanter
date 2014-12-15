@@ -77,9 +77,9 @@ Phoenix handles some of the format negotiation/body encoding issues, so the idea
 
 @patch_content_types nil
 @available_media_types ["text/html"]
-@available_charsets # e.g. ["utf-8"]
-@available_encodings # e.g. ["identity"]
-@available_languages # e.g. ["*"]
+@available_charsets ["utf-8"]
+@available_encodings ["identity"]
+@available_languages ["*"]
 @allowed_methods # autoset to ["OPTIONS", "GET"] + whichever actions are implemented
 @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 

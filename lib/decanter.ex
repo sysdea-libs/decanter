@@ -229,9 +229,9 @@ defmodule Decanter do
 
       @patch_content_types nil
       @available_media_types ["text/html"]
-      # @available_charsets ["utf-8"]
-      # @available_encodings ["identity"]
-      # @available_languages ["*"]
+      @available_charsets ["utf-8"]
+      @available_encodings ["identity"]
+      @available_languages ["*"]
       # @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
     end
@@ -313,17 +313,6 @@ defmodule Decanter do
       # Add flags for deciding on etag/last_modified checks
       decide :supports_etag?, do: unquote(supports_etag)
       decide :supports_last_modified?, do: unquote(supports_last_modified)
-
-      # Short circuit ACCEPT checks based on implemented static properties
-      unless Module.get_attribute(__MODULE__, :available_languages) do
-        decide :accept_language_exists?, do: false
-      end
-      unless Module.get_attribute(__MODULE__, :available_charsets) do
-        decide :accept_charset_exists?, do: false
-      end
-      unless Module.get_attribute(__MODULE__, :available_encodings) do
-        decide :accept_encoding_exists?, do: false
-      end
 
       # Generate entry point
       def serve(var!(conn), opts) do

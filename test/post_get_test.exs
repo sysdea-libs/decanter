@@ -8,7 +8,6 @@ defmodule PostGetTest.R do
   end
 
   @available_media_types ["text/html", "application/json"]
-  @available_charsets ["utf-8"]
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}=conn) do
     put_resp(conn, "HELLO")
