@@ -34,6 +34,12 @@ digraph decisions {
   "conflict?"->"handle_conflict"[label="true"];
   "conflict?"->"put"[label="false"];
   "conflict?"[label="conflict?"];
+  "create_enacted_post?"->"redirect_on_create?"[label="true"];
+  "create_enacted_post?"->"handle_accepted"[label="false"];
+  "create_enacted_post?"[label="create_enacted?"];
+  "create_enacted_put?"->"handle_created"[label="true"];
+  "create_enacted_put?"->"handle_accepted"[label="false"];
+  "create_enacted_put?"[label="create_enacted?"];
   "delete"->"delete_enacted?";
   "delete"[
     shape=circle,
@@ -78,6 +84,11 @@ digraph decisions {
     label="handle_created: 201",
     style=filled,
     color="0.25 0.48 1.0"
+  ];
+  "handle_exception" [
+    label="handle_exception: 500",
+    style=filled,
+    color="1.0 0.7 0.8"
   ];
   "handle_forbidden" [
     label="handle_forbidden: 403",
@@ -209,9 +220,6 @@ digraph decisions {
   "if_modified_since_valid_date?"->"modified_since?"[label="true"];
   "if_modified_since_valid_date?"->"method_delete?"[label="false"];
   "if_modified_since_valid_date?"[label="if_modified_since_valid_date?"];
-  "method_get_or_head?"->"handle_not_modified"[label="true"];
-  "method_get_or_head?"->"handle_precondition_failed"[label="false"];
-  "method_get_or_head?"[label="method_get_or_head?"];
   "if_none_match_exists?"->"if_none_match_star?"[label="true"];
   "if_none_match_exists?"->"last_modified_for_modified_since_exists?"[label="false"];
   "if_none_match_exists?"[label="if_none_match_exists?"];
@@ -251,6 +259,9 @@ digraph decisions {
   "method_delete?"->"delete"[label="true"];
   "method_delete?"->"method_patch?"[label="false"];
   "method_delete?"[label="method_delete?"];
+  "method_get_or_head?"->"handle_not_modified"[label="true"];
+  "method_get_or_head?"->"handle_precondition_failed"[label="false"];
+  "method_get_or_head?"[label="method_get_or_head?"];
   "method_options?"->"handle_options"[label="true"];
   "method_options?"->"accept_exists?"[label="false"];
   "method_options?"[label="method_options?"];
@@ -272,24 +283,24 @@ digraph decisions {
   "multiple_representations?"->"handle_multiple_representations"[label="true"];
   "multiple_representations?"->"handle_ok"[label="false"];
   "multiple_representations?"[label="multiple_representations?"];
-  "new?"->"handle_created"[label="true"];
-  "new?"->"respond_with_entity?"[label="false"];
-  "new?"[label="new?"];
+  "new_post?"->"create_enacted_post?"[label="true"];
+  "new_post?"->"respond_with_entity?"[label="false"];
+  "new_post?"[label="new?"];
+  "new_put?"->"create_enacted_put?"[label="true"];
+  "new_put?"->"respond_with_entity?"[label="false"];
+  "new_put?"[label="new?"];
   "patch"->"respond_with_entity?";
   "patch"[
     shape=circle,
     style=filled,
     color="0.33 0.58 0.86"
   ]
-  "post"->"post_redirect?";
+  "post"->"new_post?";
   "post"[
     shape=circle,
     style=filled,
     color="0.33 0.58 0.86"
   ]
-  "post_redirect?"->"handle_see_other"[label="true"];
-  "post_redirect?"->"new?"[label="false"];
-  "post_redirect?"[label="post_redirect?"];
   "post_to_existing?"->"post"[label="true"];
   "post_to_existing?"->"put_to_existing?"[label="false"];
   "post_to_existing?"[label="method_post?"];
@@ -302,7 +313,7 @@ digraph decisions {
   "processable?"->"exists?"[label="true"];
   "processable?"->"handle_unprocessable_entity"[label="false"];
   "processable?"[label="processable?"];
-  "put"->"new?";
+  "put"->"new_put?";
   "put"[
     shape=circle,
     style=filled,
@@ -314,6 +325,9 @@ digraph decisions {
   "put_to_existing?"->"conflict?"[label="true"];
   "put_to_existing?"->"multiple_representations?"[label="false"];
   "put_to_existing?"[label="method_put?"];
+  "redirect_on_create?"->"handle_see_other"[label="true"];
+  "redirect_on_create?"->"handle_created"[label="false"];
+  "redirect_on_create?"[label="redirect_on_create?"];
   "respond_with_entity?"->"multiple_representations?"[label="true"];
   "respond_with_entity?"->"handle_no_content"[label="false"];
   "respond_with_entity?"[label="respond_with_entity?"];
@@ -334,3 +348,4 @@ digraph decisions {
   "valid_entity_length?"[label="valid_entity_length?"];
 
 }
+

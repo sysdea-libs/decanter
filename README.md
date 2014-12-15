@@ -139,6 +139,7 @@ handle_service_not_available(conn) # 503, "Service not available."
 :can_post_to_missing?, do: true
 :can_put_to_missing?, do: true
 :conflict?, do: false
+:create_enacted?, do: true
 :delete_enacted?, do: true
 :existed?, do: false
 :exists?, do: true
@@ -148,7 +149,7 @@ handle_service_not_available(conn) # 503, "Service not available."
 :moved_temporarily?, do: false
 :multiple_representations?, do: false
 :new?, do: true
-:post_redirect?, do: false
+:redirect_on_create?, do: false
 :processable?, do: true
 :put_to_different_url?, do: false
 :respond_with_entity?, do: false

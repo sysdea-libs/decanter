@@ -49,17 +49,20 @@ defmodule Decanter do
 
       # actions
 
-      action :post, :post_redirect?
+      action :post, :new_post?
       action :patch, :respond_with_entity?
-      action :put, :new?
+      action :put, :new_put?
       action :delete, :delete_enacted?
 
       # decision graph
 
       decision :multiple_representations?, :handle_multiple_representations, :handle_ok
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
-      decision :new?, :handle_created, :respond_with_entity?
-      decision :post_redirect?, :handle_see_other, :new?
+      decision :redirect_on_create?, :handle_see_other, :handle_created
+      branch :create_enacted_put?, :create_enacted?, :handle_created, :handle_accepted
+      branch :new_put?, :new?, :create_enacted_put?, :respond_with_entity?
+      branch :create_enacted_post?, :create_enacted?, :redirect_on_create?, :handle_accepted
+      branch :new_post?, :new?, :create_enacted_post?, :respond_with_entity?
       decision :can_post_to_missing?, :post, :handle_not_found
       branch :post_to_missing?, :method_post?, :can_post_to_missing?, :handle_not_found
       decision :can_post_to_gone?, :post, :handle_gone
@@ -180,6 +183,7 @@ defmodule Decanter do
       decide :can_post_to_missing?, do: true
       decide :can_put_to_missing?, do: true
       decide :conflict?, do: false
+      decide :create_enacted?, do: true
       decide :delete_enacted?, do: true
       decide :existed?, do: false
       decide :exists?, do: true
@@ -189,7 +193,7 @@ defmodule Decanter do
       decide :moved_temporarily?, do: false
       decide :multiple_representations?, do: false
       decide :new?, do: true
-      decide :post_redirect?, do: false
+      decide :redirect_on_create?, do: false
       decide :processable?, do: true
       decide :put_to_different_url?, do: false
       decide :respond_with_entity?, do: false

@@ -17,6 +17,7 @@ defmodule DecisionsTest.R do
   decide :can_post_to_missing?, do: check_setting(conn, :can_post_to_missing?, true)
   decide :can_put_to_missing?, do: check_setting(conn, :can_put_to_missing?, true)
   decide :conflict?, do: check_setting(conn, :conflict?, false)
+  decide :create_enacted?, do: check_setting(conn, :create_enacted?, true)
   decide :delete_enacted?, do: check_setting(conn, :delete_enacted?, true)
   decide :existed?, do: check_setting(conn, :existed?, false)
   decide :exists?, do: check_setting(conn, :exists?, true)
@@ -26,7 +27,7 @@ defmodule DecisionsTest.R do
   decide :moved_temporarily?, do: check_setting(conn, :moved_temporarily?, false)
   decide :multiple_representations?, do: check_setting(conn, :multiple_representations?, false)
   decide :new?, do: check_setting(conn, :new?, true)
-  decide :post_redirect?, do: check_setting(conn, :post_redirect?, false)
+  decide :redirect_on_create?, do: check_setting(conn, :redirect_on_create?, false)
   decide :processable?, do: check_setting(conn, :processable?, true)
   decide :put_to_different_url?, do: check_setting(conn, :put_to_different_url?, false)
   decide :respond_with_entity?, do: check_setting(conn, :respond_with_entity?, false)
@@ -107,6 +108,11 @@ defmodule DecisionsTest do
              resp_body: ""}
            = request(DecisionsTest.R, :put, %{}, %{new?: true})
 
+    assert %{status: 202,
+             resp_body: "Accepted."}
+           = request(DecisionsTest.R, :put, %{}, %{new?: true,
+                                                   create_enacted?: false})
+
     assert %{status: 204,
              resp_body: ""}
            = request(DecisionsTest.R, :put, %{}, %{new?: false})
@@ -118,7 +124,11 @@ defmodule DecisionsTest do
 
     assert %{status: 303,
              resp_body: ""}
-           = request(DecisionsTest.R, :post, %{}, %{post_redirect?: true})
+           = request(DecisionsTest.R, :post, %{}, %{redirect_on_create?: true})
+
+    assert %{status: 201,
+             resp_body: ""}
+           = request(DecisionsTest.R, :put, %{}, %{redirect_on_create?: true})
 
     assert %{status: 422,
              resp_body: "Unprocessable entity."}
