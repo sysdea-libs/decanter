@@ -70,48 +70,63 @@ end
 
 Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Decanter for when operating outside of Phoenix.
 
-# Actions, Handlers and Decisions
+# Actions, Handlers, Decisions and Properties
 
 ```elixir
+# static properties, and their defaults if present
+
+@patch_content_types nil
+@available_media_types ["text/html"]
+@available_charsets # e.g. ["utf-8"]
+@available_encodings # e.g. ["identity"]
+@available_languages # e.g. ["*"]
+@allowed_methods # autoset to ["OPTIONS", "GET"] + whichever actions are implemented
+@known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
+
+# dynamic properties
+
+etag(conn) # will be wrapped for header, eg "absd" -> {"ETag", "\"absd\""}
+last_modified(conn) # should be an erlang style {date(),time()} or nil
+
 # actions with their following decision point
 
-:post, :post_redirect?
-:patch, :respond_with_entity?
-:put, :new?
-:delete, :delete_enacted?
+post(conn) # => :post_redirect?
+patch(conn) # => :respond_with_entity?
+put(conn) # => :new?
+delete(conn) # => :delete_enacted?
 
 # handlers with their status code and default response
 
-:handle_ok, 200, "OK"
-:handle_options, 200, ""
-:handle_created, 201, ""
-:handle_accepted, 202, "Accepted."
-:handle_no_content, 204, ""
+handle_ok(conn) # 200, "OK"
+handle_options(conn) # 200, ""
+handle_created(conn) # 201, ""
+handle_accepted(conn) # 202, "Accepted."
+handle_no_content(conn) # 204, ""
 
-:handle_multiple_representations, 300, ""
-:handle_moved_permanently, 301, ""
-:handle_see_other, 303, ""
-:handle_not_modified, 304, ""
-:handle_moved_temporarily, 307, ""
+handle_multiple_representations(conn) # 300, ""
+handle_moved_permanently(conn) # 301, ""
+handle_see_other(conn) # 303, ""
+handle_not_modified(conn) # 304, ""
+handle_moved_temporarily(conn) # 307, ""
 
-:handle_malformed, 400, "Bad request."
-:handle_unauthorized, 401, "Not authorized."
-:handle_forbidden, 403, "Forbidden."
-:handle_not_found, 404, "Resource not found."
-:handle_method_not_allowed, 405, "Method not allowed."
-:handle_not_acceptable, 406, "No acceptable resource available."
-:handle_conflict, 409, "Conflict."
-:handle_gone, 410, "Resource is gone."
-:handle_precondition_failed, 412, "Precondition failed."
-:handle_request_entity_too_large, 413, "Request entity too large."
-:handle_uri_too_long, 414, "Request URI too long."
-:handle_unsupported_media_type, 415, "Unsupported media type."
-:handle_unprocessable_entity, 422, "Unprocessable entity."
+handle_malformed(conn) # 400, "Bad request."
+handle_unauthorized(conn) # 401, "Not authorized."
+handle_forbidden(conn) # 403, "Forbidden."
+handle_not_found(conn) # 404, "Resource not found."
+handle_method_not_allowed(conn) # 405, "Method not allowed."
+handle_not_acceptable(conn) # 406, "No acceptable resource available."
+handle_conflict(conn) # 409, "Conflict."
+handle_gone(conn) # 410, "Resource is gone."
+handle_precondition_failed(conn) # 412, "Precondition failed."
+handle_request_entity_too_large(conn) # 413, "Request entity too large."
+handle_uri_too_long(conn) # 414, "Request URI too long."
+handle_unsupported_media_type(conn) # 415, "Unsupported media type."
+handle_unprocessable_entity(conn) # 422, "Unprocessable entity."
 
-:handle_exception, 500, "Internal server error."
-:handle_not_implemented, 501, "Not implemented."
-:handle_unknown_method, 501, "Unknown method."
-:handle_service_not_available, 503, "Service not available."
+handle_exception(conn) # 500, "Internal server error."
+handle_not_implemented(conn) # 501, "Not implemented."
+handle_unknown_method(conn) # 501, "Unknown method."
+handle_service_not_available(conn) # 503, "Service not available."
 
 # simple decision points, with default value
 # there are more internal decision points that can be overriden when needed
@@ -147,5 +162,6 @@ Phoenix handles some of the format negotiation/body encoding issues, so the idea
 - [x] Detect allowed_methods from action definitions?
 - [ ] AOT analyse static properties rather than parsing on each request?
 - [x] Options/Vary header construction
+- [ ] Proper language negotiation
 - [ ] Complete test suite.
 - [ ] Documentation.
