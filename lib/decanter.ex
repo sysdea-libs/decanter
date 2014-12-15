@@ -79,14 +79,11 @@ defmodule Decanter do
       decision :method_patch?, :patch!, :post_to_existing?
       decision :method_delete?, :delete!, :method_patch?
       decision :modified_since?, :method_delete?, :handle_not_modified do
+        modified_date = var!(conn).assigns[:if_modified_since_date]
         case last_modified(var!(conn)) do
           nil -> true
-          last_modified ->
-            modsincedate = var!(conn).assigns[:if_modified_since_date]
-            case last_modified == modsincedate do
-              true -> false
-              false -> {true, assign(var!(conn), :last_modified, last_modified)}
-            end
+          ^modified_date -> false
+          last_modified -> {true, assign(var!(conn), :last_modified, last_modified)}
         end
       end
       decision :if_modified_since_valid_date?, :modified_since?, :method_delete? do
@@ -101,22 +98,17 @@ defmodule Decanter do
                                                         :if_modified_since_exists?, :method_delete?
       decision :etag_matches_for_if_none?, :if_none_match?, :last_modified_for_modified_since_exists? do
         etag = format_etag(etag var!(conn))
-        {etag == var!(conn).assigns.headers["if-none-match"],
-         assign(var!(conn), :etag, etag)}
+        {etag == var!(conn).assigns.headers["if-none-match"], assign(var!(conn), :etag, etag)}
       end
       branch :etag_for_if_none?, :supports_etag?,
                                  :etag_matches_for_if_none?, :last_modified_for_modified_since_exists?
       decision :if_none_match_star?, :if_none_match?, :etag_for_if_none?
       decision :if_none_match_exists?, :if_none_match_star?, :last_modified_for_modified_since_exists?
-      decision :unmodified_since?, :handle_precondition_failed, :if_none_match_exists? do
+      decision :unmodified_since?, :if_none_match_exists?, :handle_precondition_failed do
+        unmodified_date = var!(conn).assigns[:if_unmodified_since_date]
         case last_modified(var!(conn)) do
-          nil -> true
-          last_modified ->
-            unmodsincedate = var!(conn).assigns[:if_unmodified_since_date]
-            case last_modified == unmodsincedate do
-              true -> {false, assign(var!(conn), :last_modified, last_modified)}
-              false -> true
-            end
+          ^unmodified_date -> {true, assign(var!(conn), :last_modified, unmodified_date)}
+          _ -> false
         end
       end
       branch :last_modified_for_since_exists?, :supports_last_modified?,
@@ -164,7 +156,7 @@ defmodule Decanter do
         {!is_nil(type), assign(var!(conn), :media_type, type)}
       end
       decision :accept_exists?, :media_type_available?, :accept_language_exists? do
-        if var!(conn).assigns.headers["accept"] do
+        if has_header(var!(conn), "accept") do
           true
         else
           {false, assign(var!(conn), :media_type, ConNeg.find_best(:accept, "*/*", @available_media_types))}
