@@ -32,7 +32,7 @@ defmodule UserResource do
     Map.has_key?(get_session(conn), :user)
   end
 
-  decide exists? do
+  decide :exists? do
     # Would defer to something like Plug.Router ordinarily
     ["user", id] = conn.path_info
     case @my_values[id] do
