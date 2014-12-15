@@ -156,6 +156,10 @@ handle_service_not_available(conn) # 503, "Service not available."
 :valid_entity_length?, do: true
 ```
 
+# License and Attribution
+
+Released under the MIT License. Initial decision graph structure and content negotiation test cases attributed to [Liberator](http://clojure-liberator.github.io/liberator/).
+
 ## TODO
 
 - [x] Inline unique decision paths.
