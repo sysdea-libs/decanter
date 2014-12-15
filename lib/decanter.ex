@@ -49,10 +49,10 @@ defmodule Decanter do
 
       # actions
 
-      action :post!, :post_redirect?
-      action :patch!, :respond_with_entity?
-      action :put!, :new?
-      action :delete!, :delete_enacted?
+      action :post, :post_redirect?
+      action :patch, :respond_with_entity?
+      action :put, :new?
+      action :delete, :delete_enacted?
 
       # decision graph
 
@@ -60,24 +60,24 @@ defmodule Decanter do
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
       decision :new?, :handle_created, :respond_with_entity?
       decision :post_redirect?, :handle_see_other, :new?
-      decision :can_post_to_missing?, :post!, :handle_not_found
+      decision :can_post_to_missing?, :post, :handle_not_found
       branch :post_to_missing?, :method_post?, :can_post_to_missing?, :handle_not_found
-      decision :can_post_to_gone?, :post!, :handle_gone
+      decision :can_post_to_gone?, :post, :handle_gone
       branch :post_to_gone?, :method_post?, :can_post_to_gone?, :handle_not_found
       decision :moved_temporarily?, :handle_moved_temporarily, :post_to_gone?
       decision :moved_permanently?, :handle_moved_permanently, :moved_temporarily?
       decision :existed?, :moved_permanently?, :post_to_missing?
-      decision :conflict?, :handle_conflict, :put!
+      decision :conflict?, :handle_conflict, :put
       decision :can_put_to_missing?, :conflict?, :handle_not_implemented
       decision :put_to_different_url?, :handle_moved_permanently, :can_put_to_missing?
       decision :method_put?, :put_to_different_url?, :existed?
       decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?
       decision :if_none_match?, :handle_not_modified, :handle_precondition_failed
       branch :put_to_existing?, :method_put?, :conflict?, :multiple_representations?
-      branch :post_to_existing?, :method_post?, :post!, :put_to_existing?
+      branch :post_to_existing?, :method_post?, :post, :put_to_existing?
       decision :delete_enacted?, :respond_with_entity?, :handle_accepted
-      decision :method_patch?, :patch!, :post_to_existing?
-      decision :method_delete?, :delete!, :method_patch?
+      decision :method_patch?, :patch, :post_to_existing?
+      decision :method_delete?, :delete, :method_patch?
       decision :modified_since?, :method_delete?, :handle_not_modified do
         modified_date = var!(conn).assigns[:if_modified_since_date]
         case last_modified(var!(conn)) do
@@ -257,10 +257,10 @@ defmodule Decanter do
   defmacro __before_compile__(env) do
     # Short circuit METHOD checks based on implemented action methods
     {methods, decisions} =
-      Enum.reduce [{"DELETE", :delete!, :method_delete?},
-                   {"POST", :post!, :method_post?},
-                   {"PUT", :put!, :method_put?},
-                   {"PATCH", :patch!, :method_patch?}],
+      Enum.reduce [{"DELETE", :delete, :method_delete?},
+                   {"POST", :post, :method_post?},
+                   {"PUT", :put, :method_put?},
+                   {"PATCH", :patch, :method_patch?}],
                   {["GET", "OPTIONS"], []},
                   fn ({method, name, decision}, {methods, decisions}) ->
       if Module.defines?(env.module, {name, 1}) do

@@ -22,7 +22,7 @@ defmodule PostGetTest.R do
     {{2014, 12, 13}, {11, 36, 32}}
   end
 
-  def post!(conn) do
+  def post(conn) do
     conn
   end
 end

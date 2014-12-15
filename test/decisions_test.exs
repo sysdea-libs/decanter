@@ -35,10 +35,10 @@ defmodule DecisionsTest.R do
   decide :valid_content_header?, do: check_setting(conn, :valid_content_header?, true)
   decide :valid_entity_length?, do: check_setting(conn, :valid_entity_length?, true)
 
-  def put!(conn), do: conn
-  def post!(conn), do: conn
-  def patch!(conn), do: conn
-  def delete!(conn), do: conn
+  def put(conn), do: conn
+  def post(conn), do: conn
+  def patch(conn), do: conn
+  def delete(conn), do: conn
 end
 
 defmodule DecisionsTest do
