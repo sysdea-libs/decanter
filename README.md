@@ -162,6 +162,6 @@ handle_service_not_available(conn) # 503, "Service not available."
 - [x] Detect allowed_methods from action definitions?
 - [ ] AOT analyse static properties rather than parsing on each request?
 - [x] Options/Vary header construction
-- [ ] Proper language negotiation
+- [ ] Multi language accepts
 - [ ] Complete test suite.
 - [ ] Documentation.
