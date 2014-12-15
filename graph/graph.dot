@@ -55,7 +55,7 @@ digraph decisions {
   "etag_matches_for_if_match?"->"if_unmodified_since_exists?"[label="true"];
   "etag_matches_for_if_match?"->"handle_precondition_failed"[label="false"];
   "etag_matches_for_if_match?"[label="etag_matches_for_if_match?"];
-  "etag_matches_for_if_none?"->"if_none_match?"[label="true"];
+  "etag_matches_for_if_none?"->"method_get_or_head?"[label="true"];
   "etag_matches_for_if_none?"->"last_modified_for_modified_since_exists?"[label="false"];
   "etag_matches_for_if_none?"[label="etag_matches_for_if_none?"];
   "existed?"->"moved_permanently?"[label="true"];
@@ -209,13 +209,13 @@ digraph decisions {
   "if_modified_since_valid_date?"->"modified_since?"[label="true"];
   "if_modified_since_valid_date?"->"method_delete?"[label="false"];
   "if_modified_since_valid_date?"[label="if_modified_since_valid_date?"];
-  "if_none_match?"->"handle_not_modified"[label="true"];
-  "if_none_match?"->"handle_precondition_failed"[label="false"];
-  "if_none_match?"[label="if_none_match?"];
+  "method_get_or_head?"->"handle_not_modified"[label="true"];
+  "method_get_or_head?"->"handle_precondition_failed"[label="false"];
+  "method_get_or_head?"[label="method_get_or_head?"];
   "if_none_match_exists?"->"if_none_match_star?"[label="true"];
   "if_none_match_exists?"->"last_modified_for_modified_since_exists?"[label="false"];
   "if_none_match_exists?"[label="if_none_match_exists?"];
-  "if_none_match_star?"->"if_none_match?"[label="true"];
+  "if_none_match_star?"->"method_get_or_head?"[label="true"];
   "if_none_match_star?"->"etag_for_if_none?"[label="false"];
   "if_none_match_star?"[label="if_none_match_star?"];
   "if_unmodified_since_exists?"->"if_unmodified_since_valid_date?"[label="true"];

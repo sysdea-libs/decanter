@@ -72,7 +72,7 @@ defmodule Decanter do
       decision :put_to_different_url?, :handle_moved_permanently, :can_put_to_missing?
       decision :method_put?, :put_to_different_url?, :existed?
       decision :if_match_star_exists_for_missing?, :handle_precondition_failed, :method_put?
-      decision :if_none_match?, :handle_not_modified, :handle_precondition_failed
+      decision :method_get_or_head?, :handle_not_modified, :handle_precondition_failed
       branch :put_to_existing?, :method_put?, :conflict?, :multiple_representations?
       branch :post_to_existing?, :method_post?, :post, :put_to_existing?
       decision :delete_enacted?, :respond_with_entity?, :handle_accepted
@@ -96,13 +96,13 @@ defmodule Decanter do
       decision :if_modified_since_exists?, :if_modified_since_valid_date?, :method_delete?
       branch :last_modified_for_modified_since_exists?, :supports_last_modified?,
                                                         :if_modified_since_exists?, :method_delete?
-      decision :etag_matches_for_if_none?, :if_none_match?, :last_modified_for_modified_since_exists? do
+      decision :etag_matches_for_if_none?, :method_get_or_head?, :last_modified_for_modified_since_exists? do
         etag = format_etag(etag var!(conn))
         {etag == var!(conn).assigns.headers["if-none-match"], assign(var!(conn), :etag, etag)}
       end
       branch :etag_for_if_none?, :supports_etag?,
                                  :etag_matches_for_if_none?, :last_modified_for_modified_since_exists?
-      decision :if_none_match_star?, :if_none_match?, :etag_for_if_none?
+      decision :if_none_match_star?, :method_get_or_head?, :etag_for_if_none?
       decision :if_none_match_exists?, :if_none_match_star?, :last_modified_for_modified_since_exists?
       decision :unmodified_since?, :if_none_match_exists?, :handle_precondition_failed do
         unmodified_date = var!(conn).assigns[:if_unmodified_since_date]
@@ -208,10 +208,10 @@ defmodule Decanter do
       decide :if_match_star?, do: var!(conn).assigns.headers["if-match"] == "*"
       decide :if_match_star_exists_for_missing?, do: var!(conn).assigns.headers["if-match"] == "*"
       decide :if_modified_since_exists?, do: has_header(var!(conn), "if-modified-since")
-      decide :if_none_match?, do: var!(conn).method in ["GET", "HEAD"]
       decide :if_none_match_exists?, do: has_header(var!(conn), "if-none-match")
       decide :if_none_match_star?, do: var!(conn).assigns.headers["if-none-match"] == "*"
       decide :if_unmodified_since_exists?, do: has_header(var!(conn), "if-unmodified-since")
+      decide :method_get_or_head?, do: var!(conn).method in ["GET", "HEAD"]
 
       # Internal decision points that are automatically blanked when unsupported
       decide :method_delete?, do: var!(conn).method == "DELETE"
