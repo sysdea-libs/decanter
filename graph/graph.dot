@@ -1,0 +1,336 @@
+digraph decisions {
+  node[shape=box fontSize=12]
+  edge[fontSize=12]
+  "accept_charset_exists?"->"charset_available?"[label="true"];
+  "accept_charset_exists?"->"accept_encoding_exists?"[label="false"];
+  "accept_charset_exists?"[label="accept_charset_exists?"];
+  "accept_encoding_exists?"->"encoding_available?"[label="true"];
+  "accept_encoding_exists?"->"processable?"[label="false"];
+  "accept_encoding_exists?"[label="accept_encoding_exists?"];
+  "accept_exists?"->"media_type_available?"[label="true"];
+  "accept_exists?"->"accept_language_exists?"[label="false"];
+  "accept_exists?"[label="accept_exists?"];
+  "accept_language_exists?"->"language_available?"[label="true"];
+  "accept_language_exists?"->"accept_charset_exists?"[label="false"];
+  "accept_language_exists?"[label="accept_language_exists?"];
+  "allowed?"->"valid_content_header?"[label="true"];
+  "allowed?"->"handle_forbidden"[label="false"];
+  "allowed?"[label="allowed?"];
+  "authorized?"->"allowed?"[label="true"];
+  "authorized?"->"handle_unauthorized"[label="false"];
+  "authorized?"[label="authorized?"];
+  "can_post_to_gone?"->"post"[label="true"];
+  "can_post_to_gone?"->"handle_gone"[label="false"];
+  "can_post_to_gone?"[label="can_post_to_gone?"];
+  "can_post_to_missing?"->"post"[label="true"];
+  "can_post_to_missing?"->"handle_not_found"[label="false"];
+  "can_post_to_missing?"[label="can_post_to_missing?"];
+  "can_put_to_missing?"->"conflict?"[label="true"];
+  "can_put_to_missing?"->"handle_not_implemented"[label="false"];
+  "can_put_to_missing?"[label="can_put_to_missing?"];
+  "charset_available?"->"accept_encoding_exists?"[label="true"];
+  "charset_available?"->"handle_not_acceptable"[label="false"];
+  "charset_available?"[label="charset_available?"];
+  "conflict?"->"handle_conflict"[label="true"];
+  "conflict?"->"put"[label="false"];
+  "conflict?"[label="conflict?"];
+  "delete"->"delete_enacted?";
+  "delete"[
+    shape=circle,
+    style=filled,
+    color="0.33 0.58 0.86"
+  ]
+  "delete_enacted?"->"respond_with_entity?"[label="true"];
+  "delete_enacted?"->"handle_accepted"[label="false"];
+  "delete_enacted?"[label="delete_enacted?"];
+  "encoding_available?"->"processable?"[label="true"];
+  "encoding_available?"->"handle_not_acceptable"[label="false"];
+  "encoding_available?"[label="encoding_available?"];
+  "etag_for_if_match?"->"etag_matches_for_if_match?"[label="true"];
+  "etag_for_if_match?"->"handle_precondition_failed"[label="false"];
+  "etag_for_if_match?"[label="supports_etag?"];
+  "etag_for_if_none?"->"etag_matches_for_if_none?"[label="true"];
+  "etag_for_if_none?"->"last_modified_for_modified_since_exists?"[label="false"];
+  "etag_for_if_none?"[label="supports_etag?"];
+  "etag_matches_for_if_match?"->"if_unmodified_since_exists?"[label="true"];
+  "etag_matches_for_if_match?"->"handle_precondition_failed"[label="false"];
+  "etag_matches_for_if_match?"[label="etag_matches_for_if_match?"];
+  "etag_matches_for_if_none?"->"if_none_match?"[label="true"];
+  "etag_matches_for_if_none?"->"last_modified_for_modified_since_exists?"[label="false"];
+  "etag_matches_for_if_none?"[label="etag_matches_for_if_none?"];
+  "existed?"->"moved_permanently?"[label="true"];
+  "existed?"->"post_to_missing?"[label="false"];
+  "existed?"[label="existed?"];
+  "exists?"->"if_match_exists?"[label="true"];
+  "exists?"->"if_match_star_exists_for_missing?"[label="false"];
+  "exists?"[label="exists?"];
+  "handle_accepted" [
+    label="handle_accepted: 202",
+    style=filled,
+    color="0.25 0.48 1.0"
+  ];
+  "handle_conflict" [
+    label="handle_conflict: 409",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_created" [
+    label="handle_created: 201",
+    style=filled,
+    color="0.25 0.48 1.0"
+  ];
+  "handle_forbidden" [
+    label="handle_forbidden: 403",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_gone" [
+    label="handle_gone: 410",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_malformed" [
+    label="handle_malformed: 400",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_method_not_allowed" [
+    label="handle_method_not_allowed: 405",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_moved_permanently" [
+    label="handle_moved_permanently: 301",
+    style=filled,
+    color="0.61 0.48 1.0"
+  ];
+  "handle_moved_temporarily" [
+    label="handle_moved_temporarily: 307",
+    style=filled,
+    color="0.61 0.48 1.0"
+  ];
+  "handle_multiple_representations" [
+    label="handle_multiple_representations: 300",
+    style=filled,
+    color="0.61 0.48 1.0"
+  ];
+  "handle_no_content" [
+    label="handle_no_content: 204",
+    style=filled,
+    color="0.25 0.48 1.0"
+  ];
+  "handle_not_acceptable" [
+    label="handle_not_acceptable: 406",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_not_found" [
+    label="handle_not_found: 404",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_not_implemented" [
+    label="handle_not_implemented: 501",
+    style=filled,
+    color="1.0 0.7 0.8"
+  ];
+  "handle_not_modified" [
+    label="handle_not_modified: 304",
+    style=filled,
+    color="0.61 0.48 1.0"
+  ];
+  "handle_ok" [
+    label="handle_ok: 200",
+    style=filled,
+    color="0.25 0.48 1.0"
+  ];
+  "handle_options" [
+    label="handle_options: 200",
+    style=filled,
+    color="0.25 0.48 1.0"
+  ];
+  "handle_precondition_failed" [
+    label="handle_precondition_failed: 412",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_request_entity_too_large" [
+    label="handle_request_entity_too_large: 413",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_see_other" [
+    label="handle_see_other: 303",
+    style=filled,
+    color="0.61 0.48 1.0"
+  ];
+  "handle_service_not_available" [
+    label="handle_service_not_available: 503",
+    style=filled,
+    color="1.0 0.7 0.8"
+  ];
+  "handle_unauthorized" [
+    label="handle_unauthorized: 401",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_unknown_method" [
+    label="handle_unknown_method: 501",
+    style=filled,
+    color="1.0 0.7 0.8"
+  ];
+  "handle_unprocessable_entity" [
+    label="handle_unprocessable_entity: 422",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_unsupported_media_type" [
+    label="handle_unsupported_media_type: 415",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "handle_uri_too_long" [
+    label="handle_uri_too_long: 414",
+    style=filled,
+    color="0.1 0.72 1.0"
+  ];
+  "if_match_exists?"->"if_match_star?"[label="true"];
+  "if_match_exists?"->"if_unmodified_since_exists?"[label="false"];
+  "if_match_exists?"[label="if_match_exists?"];
+  "if_match_star?"->"if_unmodified_since_exists?"[label="true"];
+  "if_match_star?"->"etag_for_if_match?"[label="false"];
+  "if_match_star?"[label="if_match_star?"];
+  "if_match_star_exists_for_missing?"->"handle_precondition_failed"[label="true"];
+  "if_match_star_exists_for_missing?"->"method_put?"[label="false"];
+  "if_match_star_exists_for_missing?"[label="if_match_star_exists_for_missing?"];
+  "if_modified_since_exists?"->"if_modified_since_valid_date?"[label="true"];
+  "if_modified_since_exists?"->"method_delete?"[label="false"];
+  "if_modified_since_exists?"[label="if_modified_since_exists?"];
+  "if_modified_since_valid_date?"->"modified_since?"[label="true"];
+  "if_modified_since_valid_date?"->"method_delete?"[label="false"];
+  "if_modified_since_valid_date?"[label="if_modified_since_valid_date?"];
+  "if_none_match?"->"handle_not_modified"[label="true"];
+  "if_none_match?"->"handle_precondition_failed"[label="false"];
+  "if_none_match?"[label="if_none_match?"];
+  "if_none_match_exists?"->"if_none_match_star?"[label="true"];
+  "if_none_match_exists?"->"last_modified_for_modified_since_exists?"[label="false"];
+  "if_none_match_exists?"[label="if_none_match_exists?"];
+  "if_none_match_star?"->"if_none_match?"[label="true"];
+  "if_none_match_star?"->"etag_for_if_none?"[label="false"];
+  "if_none_match_star?"[label="if_none_match_star?"];
+  "if_unmodified_since_exists?"->"if_unmodified_since_valid_date?"[label="true"];
+  "if_unmodified_since_exists?"->"if_none_match_exists?"[label="false"];
+  "if_unmodified_since_exists?"[label="if_unmodified_since_exists?"];
+  "if_unmodified_since_valid_date?"->"last_modified_for_since_exists?"[label="true"];
+  "if_unmodified_since_valid_date?"->"if_none_match_exists?"[label="false"];
+  "if_unmodified_since_valid_date?"[label="if_unmodified_since_valid_date?"];
+  "known_content_type?"->"valid_entity_length?"[label="true"];
+  "known_content_type?"->"handle_unsupported_media_type"[label="false"];
+  "known_content_type?"[label="known_content_type?"];
+  "known_method?"->"uri_too_long?"[label="true"];
+  "known_method?"->"handle_unknown_method"[label="false"];
+  "known_method?"[label="known_method?"];
+  "language_available?"->"accept_charset_exists?"[label="true"];
+  "language_available?"->"handle_not_acceptable"[label="false"];
+  "language_available?"[label="language_available?"];
+  "last_modified_for_modified_since_exists?"->"if_modified_since_exists?"[label="true"];
+  "last_modified_for_modified_since_exists?"->"method_delete?"[label="false"];
+  "last_modified_for_modified_since_exists?"[label="supports_last_modified?"];
+  "last_modified_for_since_exists?"->"unmodified_since?"[label="true"];
+  "last_modified_for_since_exists?"->"handle_precondition_failed"[label="false"];
+  "last_modified_for_since_exists?"[label="supports_last_modified?"];
+  "malformed?"->"handle_malformed"[label="true"];
+  "malformed?"->"authorized?"[label="false"];
+  "malformed?"[label="malformed?"];
+  "media_type_available?"->"accept_language_exists?"[label="true"];
+  "media_type_available?"->"handle_not_acceptable"[label="false"];
+  "media_type_available?"[label="media_type_available?"];
+  "method_allowed?"->"malformed?"[label="true"];
+  "method_allowed?"->"handle_method_not_allowed"[label="false"];
+  "method_allowed?"[label="method_allowed?"];
+  "method_delete?"->"delete"[label="true"];
+  "method_delete?"->"method_patch?"[label="false"];
+  "method_delete?"[label="method_delete?"];
+  "method_options?"->"handle_options"[label="true"];
+  "method_options?"->"accept_exists?"[label="false"];
+  "method_options?"[label="method_options?"];
+  "method_patch?"->"patch"[label="true"];
+  "method_patch?"->"post_to_existing?"[label="false"];
+  "method_patch?"[label="method_patch?"];
+  "method_put?"->"put_to_different_url?"[label="true"];
+  "method_put?"->"existed?"[label="false"];
+  "method_put?"[label="method_put?"];
+  "modified_since?"->"method_delete?"[label="true"];
+  "modified_since?"->"handle_not_modified"[label="false"];
+  "modified_since?"[label="modified_since?"];
+  "moved_permanently?"->"handle_moved_permanently"[label="true"];
+  "moved_permanently?"->"moved_temporarily?"[label="false"];
+  "moved_permanently?"[label="moved_permanently?"];
+  "moved_temporarily?"->"handle_moved_temporarily"[label="true"];
+  "moved_temporarily?"->"post_to_gone?"[label="false"];
+  "moved_temporarily?"[label="moved_temporarily?"];
+  "multiple_representations?"->"handle_multiple_representations"[label="true"];
+  "multiple_representations?"->"handle_ok"[label="false"];
+  "multiple_representations?"[label="multiple_representations?"];
+  "new?"->"handle_created"[label="true"];
+  "new?"->"respond_with_entity?"[label="false"];
+  "new?"[label="new?"];
+  "patch"->"respond_with_entity?";
+  "patch"[
+    shape=circle,
+    style=filled,
+    color="0.33 0.58 0.86"
+  ]
+  "post"->"post_redirect?";
+  "post"[
+    shape=circle,
+    style=filled,
+    color="0.33 0.58 0.86"
+  ]
+  "post_redirect?"->"handle_see_other"[label="true"];
+  "post_redirect?"->"new?"[label="false"];
+  "post_redirect?"[label="post_redirect?"];
+  "post_to_existing?"->"post"[label="true"];
+  "post_to_existing?"->"put_to_existing?"[label="false"];
+  "post_to_existing?"[label="method_post?"];
+  "post_to_gone?"->"can_post_to_gone?"[label="true"];
+  "post_to_gone?"->"handle_not_found"[label="false"];
+  "post_to_gone?"[label="method_post?"];
+  "post_to_missing?"->"can_post_to_missing?"[label="true"];
+  "post_to_missing?"->"handle_not_found"[label="false"];
+  "post_to_missing?"[label="method_post?"];
+  "processable?"->"exists?"[label="true"];
+  "processable?"->"handle_unprocessable_entity"[label="false"];
+  "processable?"[label="processable?"];
+  "put"->"new?";
+  "put"[
+    shape=circle,
+    style=filled,
+    color="0.33 0.58 0.86"
+  ]
+  "put_to_different_url?"->"handle_moved_permanently"[label="true"];
+  "put_to_different_url?"->"can_put_to_missing?"[label="false"];
+  "put_to_different_url?"[label="put_to_different_url?"];
+  "put_to_existing?"->"conflict?"[label="true"];
+  "put_to_existing?"->"multiple_representations?"[label="false"];
+  "put_to_existing?"[label="method_put?"];
+  "respond_with_entity?"->"multiple_representations?"[label="true"];
+  "respond_with_entity?"->"handle_no_content"[label="false"];
+  "respond_with_entity?"[label="respond_with_entity?"];
+  "service_available?"->"known_method?"[label="true"];
+  "service_available?"->"handle_service_not_available"[label="false"];
+  "service_available?"[label="service_available?"];
+  "unmodified_since?"->"if_none_match_exists?"[label="true"];
+  "unmodified_since?"->"handle_precondition_failed"[label="false"];
+  "unmodified_since?"[label="unmodified_since?"];
+  "uri_too_long?"->"handle_uri_too_long"[label="true"];
+  "uri_too_long?"->"method_allowed?"[label="false"];
+  "uri_too_long?"[label="uri_too_long?"];
+  "valid_content_header?"->"known_content_type?"[label="true"];
+  "valid_content_header?"->"handle_not_implemented"[label="false"];
+  "valid_content_header?"[label="valid_content_header?"];
+  "valid_entity_length?"->"method_options?"[label="true"];
+  "valid_entity_length?"->"handle_request_entity_too_large"[label="false"];
+  "valid_entity_length?"[label="valid_entity_length?"];
+
+}

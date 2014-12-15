@@ -34,6 +34,51 @@ defmodule Decanter.DecisionGraph do
                        nodes: Module.get_attribute(env.module, :nodes)}, entry_name)
   end
 
+  def generate_dot_file(nodes) do
+    dot = for {name, node} <- nodes do
+      case node do
+        {:branch, test, consequent, alternate} ->
+          """
+            "#{to_string name}"->"#{to_string consequent}"[label="true"];
+            "#{to_string name}"->"#{to_string alternate}"[label="false"];
+            "#{to_string name}"[label="#{to_string test}"];
+          """
+        {:handler, status, _content} ->
+          color = cond do
+            status in 200..299 -> "0.25 0.48 1.0"
+            status in 300..399 -> "0.61 0.48 1.0"
+            status in 400..499 -> "0.1 0.72 1.0"
+            status in 500..599 -> "1.0 0.7 0.8"
+          end
+
+          """
+            "#{to_string name}" [
+              label="#{to_string name}: #{to_string status}",
+              style=filled,
+              color="#{color}"
+            ];
+          """
+        {:action, next} ->
+          """
+            "#{to_string name}"->"#{to_string next}";
+            "#{to_string name}"[
+              shape=circle,
+              style=filled,
+              color="0.33 0.58 0.86"
+            ]
+          """
+      end
+    end
+
+    """
+    digraph decisions {
+      node[shape=box fontSize=12]
+      edge[fontSize=12]
+    #{Enum.join(dot, "")}
+    }
+    """
+  end
+
   defmacro branch(name, test, consequent, alternate) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:branch, unquote(test), unquote(consequent), unquote(alternate)})
