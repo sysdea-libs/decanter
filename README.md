@@ -4,11 +4,9 @@ Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, as
 
 ## Status
 
-Experimental
+Highly Experimental. Has not yet been used outside of basic testing, the API is still highly in flux.
 
 ## Example
-
-The API is still in flux, but the following shows the basic concepts of decision points to customise resource handling:
 
 ```elixir
 defmodule UserResource do
@@ -49,12 +47,12 @@ defmodule UserResource do
   decide :can_put_to_missing?, do: false
 
   # Handlers
-  handle :ok, %Plug.Conn{assigns: %{media_type: "text/html"}} do
-    "<h1>#{conn.assigns.user}</h1>"
+  def handle_ok(%{assigns: %{media_type: "text/html"}}=conn) do
+    put_resp(conn, "<h1>#{conn.assigns.user}</h1>")
   end
 
-  handle :ok, %Plug.Conn{assigns: %{media_type: "application/json"}} do
-    ~s({"name": "#{conn.assigns.user}"})
+  def handle_ok(%{assigns: %{media_type: "application/json"}}=conn) do
+    put_resp(conn, ~s({"name": "#{conn.assigns.user}"}))
   end
 
   # Actions
@@ -67,8 +65,6 @@ end
 ## Why not just wrap cowboy_rest/webmachine?
 
 `cowboy_rest` and `webmachine` are both specific to their respective adapters, while Decanter sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
-
-Decanter can also perhaps achieve higher performance as it uses macros to customise the compiled decision graph based on the resource definition. This allows the addition of extra decision points with no performance detriment, as boolean constant decisions are simply compiled away to nothing.
 
 ## What about Phoenix?
 

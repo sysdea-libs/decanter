@@ -5,27 +5,14 @@ defmodule Decanter do
 
       use Decanter.DecisionGraph
       use Plug.Builder
-
       require Decanter.ConnectionNegotiator, as: ConNeg
+      import Decanter
 
       def init(opts) do
         opts
       end
 
       defoverridable [init: 1]
-
-      # util functions
-
-      defp format_etag(etag) do
-        case etag do
-          nil -> nil
-          etag -> "\"#{to_string(etag)}\""
-        end
-      end
-
-      defp has_header(conn, header) do
-        Map.has_key?(conn.assigns.headers, header)
-      end
 
       # handlers
 
@@ -256,6 +243,23 @@ defmodule Decanter do
       # @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
     end
+  end
+
+  # util functions
+
+  def format_etag(etag) do
+    case etag do
+      nil -> nil
+      etag -> "\"#{to_string(etag)}\""
+    end
+  end
+
+  def has_header(conn, header) do
+    Map.has_key?(conn.assigns.headers, header)
+  end
+
+  def put_resp(conn, resp) do
+    Plug.Conn.resp(conn, conn.status, resp)
   end
 
   defmacro __before_compile__(env) do

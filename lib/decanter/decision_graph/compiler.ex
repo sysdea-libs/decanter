@@ -55,7 +55,7 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
 
   defp do_build_trees(name, %{nodes: nodes, decisions: decisions,
-                              handlers: handlers, counts: counts}=maps, trees) do
+                              defs: defs, counts: counts}=maps, trees) do
     if trees[name] do
       {name, trees}
     else
@@ -107,8 +107,8 @@ defmodule Decanter.DecisionGraph.Compiler do
               {name, Map.put(trees, name, {:tree, body})}
           end
         {:handler, status, content} ->
-          body = if Map.has_key?(handlers, name) do
-            {:handler, status, :case, Enum.reverse(handlers[name])}
+          body = if Set.member?(defs, name) do
+            {:handler, status, :call, name}
           else
             {:handler, status, :string, content}
           end
@@ -157,19 +157,9 @@ defmodule Decanter.DecisionGraph.Compiler do
       end
     end
   end
-  defp compile_node({:handler, status, :case, handlers}) do
-    handles = for {match,body} <- handlers do
-      quote do
-        unquote(match) -> unquote(body)
-      end
-    end
-
+  defp compile_node({:handler, status, :call, name}) do
     quote do
-      content = case var!(conn) do
-        unquote(handles |> List.flatten)
-      end
-
-      Plug.Conn.resp(var!(conn), unquote(status), content)
+      unquote(name)(Plug.Conn.put_status(var!(conn), unquote(status)))
     end
   end
   defp compile_node({:handler, status, :string, content}) do

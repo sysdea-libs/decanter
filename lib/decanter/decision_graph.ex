@@ -22,9 +22,15 @@ defmodule Decanter.DecisionGraph do
   end
 
   defmacro __before_compile__(env) do
+    defs = Enum.reduce(Module.definitions_in(env.module, :def), HashSet.new,
+                        fn
+                          ({name, 1}, set) -> Set.put(set, name)
+                          (_, set) -> set
+                        end)
+
     entry_name = Module.get_attribute(env.module, :entry_point)
     Compiler.compile(%{decisions: Module.get_attribute(env.module, :decisions),
-                       handlers: Module.get_attribute(env.module, :handlers),
+                       defs: defs,
                        nodes: Module.get_attribute(env.module, :nodes)}, entry_name)
   end
 
@@ -63,21 +69,6 @@ defmodule Decanter.DecisionGraph do
   defmacro action(name, next) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:action, unquote(next)})
-    end
-  end
-
-  defmacro handle(name, conn, args) do
-    name = String.to_atom("handle_" <> (name |> to_string))
-
-    quote do
-      entry = {unquote(Macro.escape(conn, unquote: true)),
-               unquote(Macro.escape(args[:do], unquote: true))}
-
-      if existing = @handlers[unquote(name)] do
-        @handlers Map.put(@handlers, unquote(name), [entry|existing])
-      else
-        @handlers Map.put(@handlers, unquote(name), [entry])
-      end
     end
   end
 end
