@@ -72,6 +72,8 @@ Phoenix handles some of the format negotiation/body encoding issues, so the idea
 
 # Actions, Handlers, Decisions and Properties
 
+There's a [visualisation of the decision graph](https://cdn.rawgit.com/sysdea-libs/decanter/master/graph/graph.svg) available in SVG form.
+
 ```elixir
 # static properties, and their defaults if present
 
