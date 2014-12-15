@@ -8,7 +8,7 @@ defmodule Decanter.DecisionGraph.Compiler do
       trees = Map.put(trees, name, {:tree, {:call, new_name}})
     end
 
-    for tree <- trees, do: compile_tree(tree)
+    Enum.map(trees, &compile_tree(&1))
   end
 
   defp add_counts(maps, name) do
