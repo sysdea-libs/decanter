@@ -158,14 +158,19 @@ defmodule Decanter do
       end
       decision :accept_language_exists?, :language_available?, :accept_charset_exists?
       decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
-        type = ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], @available_media_types)
-        {!is_nil(type), assign(var!(conn), :media_type, type)}
+        case ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], @available_media_types) do
+          nil -> false
+          media_type -> {true, assign(var!(conn), :media_type, media_type)}
+        end
       end
       decision :accept_exists?, :media_type_available?, :accept_language_exists? do
         if has_header(var!(conn), "accept") do
           true
         else
-          {false, assign(var!(conn), :media_type, ConNeg.find_best(:accept, "*/*", @available_media_types))}
+          case ConNeg.find_best(:accept, "*/*", @available_media_types) do
+            nil -> :handle_not_acceptable # bail out
+            media_type -> {false, assign(var!(conn), :media_type, media_type)}
+          end
         end
       end
       decision :method_options?, :handle_options, :accept_exists?
@@ -333,23 +338,21 @@ defmodule Decanter do
         conn = unquote(etag_check)
         conn = unquote(last_modified_check)
 
-        if conn.method == "OPTIONS" || conn.status == 405 do
+        if conn.method == "OPTIONS" or conn.status == 405 do
           conn = put_resp_header(conn, "Allow", Enum.join(@allowed_methods, ","))
           if @patch_content_types do
             conn = put_resp_header(conn, "Accept-Patch", Enum.join(@patch_content_types, ","))
           end
         end
 
-        vary = []
-
-        if media_type = conn.assigns[:media_type] do
-          vary = ["Accept"|vary]
-          if charset = conn.assigns[:charset] do
-            vary = ["Accept-Charset"|vary]
-            conn = put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")
-          else
-            conn = put_resp_header(conn, "Content-Type", media_type)
-          end
+        {vary, conn} = case conn.assigns do
+          %{media_type: media_type, charset: charset} ->
+            {["Accept-Charset", "Accept"],
+             put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")}
+          %{media_type: media_type} ->
+            {["Accept"],
+             put_resp_header(conn, "Content-Type", media_type)}
+          _ -> {[], conn}
         end
 
         if language = conn.assigns[:language] do
@@ -362,7 +365,7 @@ defmodule Decanter do
           conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
         end
 
-        if Enum.count(vary) > 0 do
+        unless Enum.empty?(vary) do
           conn = put_resp_header(conn, "Vary", Enum.join(vary, ","))
         end
 
