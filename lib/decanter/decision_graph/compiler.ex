@@ -1,12 +1,8 @@
 defmodule Decanter.DecisionGraph.Compiler do
   def compile(maps, name) do
-    {new_name, trees} = maps
-                        |> add_counts(name)
-                        |> build_trees(name)
-
-    if name != new_name do
-      trees = Map.put(trees, name, {:tree, {:call, new_name}})
-    end
+    {^name, trees} = maps
+                     |> add_counts(name)
+                     |> build_trees(name)
 
     Enum.map(trees, &compile_tree(&1))
   end
@@ -62,8 +58,14 @@ defmodule Decanter.DecisionGraph.Compiler do
       case nodes[name] do
         {:branch, test, consequent, alternate} ->
           case decisions[test] do
-            true -> do_build_trees(consequent, maps, trees)
-            false -> do_build_trees(alternate, maps, trees)
+            true ->
+              {inner_name, trees} = do_build_trees(consequent, maps, trees)
+              {name, Map.put(trees, name, trees[inner_name])
+                     |> Map.delete(inner_name)}
+            false ->
+              {inner_name, trees} = do_build_trees(alternate, maps, trees)
+              {name, Map.put(trees, name, trees[inner_name])
+                     |> Map.delete(inner_name)}
             body ->
               {consequent, trees} = do_build_trees(consequent, maps, trees)
               {alternate, trees} = do_build_trees(alternate, maps, trees)
