@@ -9,6 +9,7 @@ defmodule Decanter.DecisionGraph do
       @nodes %{}
       @decisions %{}
       @handlers %{}
+      @dynamic HashSet.new
 
       defp handle_decision(ctx, result) do
         case result do
@@ -16,6 +17,8 @@ defmodule Decanter.DecisionGraph do
           false -> {false, ctx}
           {true, ctx}  -> {true, ctx}
           {false, ctx} -> {false, ctx}
+          x when is_atom(x) -> {x, ctx}
+          {x, ctx} when is_atom(x) -> {x, ctx}
         end
       end
     end
@@ -31,7 +34,8 @@ defmodule Decanter.DecisionGraph do
     entry_name = Module.get_attribute(env.module, :entry_point)
     Compiler.compile(%{decisions: Module.get_attribute(env.module, :decisions),
                        defs: defs,
-                       nodes: Module.get_attribute(env.module, :nodes)}, entry_name)
+                       nodes: Module.get_attribute(env.module, :nodes),
+                       dynamic: Module.get_attribute(env.module, :dynamic)}, entry_name)
   end
 
   def generate_dot_file(nodes) do
@@ -114,6 +118,12 @@ defmodule Decanter.DecisionGraph do
   defmacro action(name, next) do
     quote do
       @nodes Map.put(@nodes, unquote(name), {:action, unquote(next)})
+    end
+  end
+
+  defmacro dynamic(name) do
+    quote do
+      @dynamic Set.put(@dynamic, unquote(name))
     end
   end
 end

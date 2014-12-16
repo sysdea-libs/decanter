@@ -40,6 +40,8 @@ defmodule DecisionsTest.R do
   def post(conn), do: conn
   def patch(conn), do: conn
   def delete(conn), do: conn
+
+  dynamic :handle_unprocessable_entity
 end
 
 defmodule DecisionsTest do
@@ -154,5 +156,11 @@ defmodule DecisionsTest do
     assert %{status: 413,
              resp_body: "Request entity too large."}
            = request(DecisionsTest.R, :put, %{}, %{valid_entity_length?: false})
+  end
+
+  test "atom redirect" do
+    assert %{status: 422,
+             resp_body: "Unprocessable entity."}
+           = request(DecisionsTest.R, :get, %{}, %{allowed?: :handle_unprocessable_entity})
   end
 end

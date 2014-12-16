@@ -8,7 +8,8 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
 
   defp add_counts(maps, name) do
-    Map.put(maps, :counts, do_visit_nodes(name, maps, %{}))
+    initial_counts = for x <- maps.dynamic, do: {x, 1}, into: %{}
+    base_counts = Map.put(maps, :counts, do_visit_nodes(name, maps, initial_counts))
   end
 
   defp do_visit_nodes(name, %{nodes: nodes, decisions: decisions}=maps, acc) do
@@ -66,6 +67,10 @@ defmodule Decanter.DecisionGraph.Compiler do
               {inner_name, trees} = do_build_trees(alternate, maps, trees)
               {name, Map.put(trees, name, trees[inner_name])
                      |> Map.delete(inner_name)}
+            handler when is_atom(handler) ->
+              {inner_name, trees} = do_build_trees(handler, maps, trees)
+              {name, Map.put(trees, name, trees[inner_name])
+                     |> Map.delete(inner_name)}
             body ->
               {consequent, trees} = do_build_trees(consequent, maps, trees)
               {alternate, trees} = do_build_trees(alternate, maps, trees)
@@ -86,10 +91,9 @@ defmodule Decanter.DecisionGraph.Compiler do
               end
 
               strategy = case body do
-                {:if, _, _} -> :case
-                {:__block__, _, _} -> :case
-                {:{}, _, _} -> :case
-                _ -> :if
+                {:==, _, _} -> :if
+                {:in, _, _} -> :if
+                _ -> :case
               end
 
               body = case {same_path, strategy} do
@@ -135,8 +139,10 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
   defp compile_node({:block, body, consequent}) do
     quote location: :keep do
-      {_, var!(conn)} = handle_decision(var!(conn), unquote(body))
-      unquote(compile_node consequent)
+      case handle_decision(var!(conn), unquote(body)) do
+        {x, conn} when is_atom(x) -> do_decide(x, conn)
+        {_, var!(conn)} -> unquote(compile_node consequent)
+      end
     end
   end
   defp compile_node({:if, body, consequent, alternate}) do
@@ -153,6 +159,7 @@ defmodule Decanter.DecisionGraph.Compiler do
       case handle_decision(var!(conn), unquote(body)) do
         {true, var!(conn)} -> unquote(compile_node consequent)
         {false, var!(conn)} -> unquote(compile_node alternate)
+        {handler, conn} -> do_decide(handler, conn)
       end
     end
   end
