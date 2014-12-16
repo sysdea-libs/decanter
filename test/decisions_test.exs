@@ -52,6 +52,14 @@ defmodule DecisionsTest.Hardwired do
   decide :service_available?, do: :handle_forbidden
 end
 
+defmodule DecisionsTest.EntryPoint do
+  use Decanter
+
+  plug :serve
+
+  @entry_point :handle_forbidden
+end
+
 defmodule DecisionsTest do
   use DecanterTest
 
@@ -174,5 +182,11 @@ defmodule DecisionsTest do
     assert %{status: 403,
              resp_body: "Forbidden."}
            = request(DecisionsTest.Hardwired, :get, %{}, %{})
+  end
+
+  test "entry_point override" do
+    assert %{status: 403,
+             resp_body: "Forbidden."}
+           = request(DecisionsTest.EntryPoint, :get, %{}, %{})
   end
 end
