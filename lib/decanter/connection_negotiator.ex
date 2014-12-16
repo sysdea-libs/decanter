@@ -15,7 +15,6 @@ defmodule Decanter.ConnectionNegotiator do
 
     {stabilised,_} = Enum.reduce scored, {[], 0},
                       fn
-                        ({0, _}, acc) -> acc
                         ({0.0, _}, acc) -> acc
                         ({q, v}, {r, dq}) -> {[{q+dq, v}|r], dq+0.01}
                       end
@@ -94,6 +93,7 @@ defmodule Decanter.ConnectionNegotiator do
     case Enum.map(parts, &do_score(mode, accept, &1))
          |> Enum.sort
          |> List.first do
+      nil -> nil
       {0, _, _} -> nil
       {_,q,accept} -> {q, accept}
     end

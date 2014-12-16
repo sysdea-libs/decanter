@@ -14,6 +14,8 @@ defmodule ConnectionNegotiatorTest do
               {"text/*", ["text/html", "application/json"], "text/html"},
               {"text/html", ["*/*"], "text/html"},
               {"text/*", ["*/*"], nil},
+              {"a/b/c", ["text/html"], nil},
+              {"*/*", ["*/*"], nil},
               {"*/*", ["text/html", "application/json"], "text/html"},
               {"text/html", ["text/*", "application/json"], "text/html"},
               {"application/json", ["text/html", "application/json"], "application/json"}])
@@ -37,6 +39,9 @@ defmodule ConnectionNegotiatorTest do
         # iso-8859-1 is always available unless score set to 0
         {"ascii;q=0.5", ["ascii", "ISO-8859-1"], "ISO-8859-1"},
 
+        # bad q values default to 1.0
+        {"ascii;q=f", ["ascii", "ISO-8859-1"], "ascii"},
+
         # Nothing is returned because ASCII is gets a score of 0
         {"iso-8859-15;q=0.6, utf-16;q=0.9", ["ASCII"], nil},
 
@@ -50,6 +55,7 @@ defmodule ConnectionNegotiatorTest do
   test "encoding" do
     test_neg(:encoding,
       [ {"compress;q=0.4, gzip;q=0.2",           ["compress", "gzip"], "compress"},
+        {"compress;q=0.4, gzip;q=0.2",           ["identity"],         "identity"},
         {"compress;q=0.4, gzip;q=0.8",           ["compress", "gzip"], "gzip"},
         {"identity, compress;q=0.4, gzip;q=0.8", ["compress", "gzip"], "identity"},
         {"compress",                             ["gzip"],             "identity"},
