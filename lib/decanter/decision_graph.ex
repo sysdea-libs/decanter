@@ -31,12 +31,12 @@ defmodule Decanter.DecisionGraph do
                           (_, set) -> set
                         end)
 
-    entry_name = Module.get_attribute(env.module, :entry_point)
-    context_name = Module.get_attribute(env.module, :context_name)
     Compiler.compile(%{decisions: Module.get_attribute(env.module, :decisions),
                        defs: defs,
                        nodes: Module.get_attribute(env.module, :nodes),
-                       dynamic: Module.get_attribute(env.module, :dynamic)}, entry_name, context_name)
+                       dynamic: Module.get_attribute(env.module, :dynamic)},
+                     %{entry_point: Module.get_attribute(env.module, :entry_point),
+                       ctx_name: Module.get_attribute(env.module, :context_name)})
   end
 
   def generate_dot_file(nodes) do
