@@ -1,6 +1,6 @@
 # Decanter
 
-Port of [Liberator](http://clojure-liberator.github.io/liberator/) to Elixir, as a Plug. Exposes resources through a RESTful interface.
+Decanter is a [Liberator](http://clojure-liberator.github.io/liberator/)/[webmachine](https://github.com/basho/webmachine)-style library in Elixir for exposing resources through a RESTful interface, on top of Plug. It's built on top of a dynamically built decision graph, allowing for ellision of fixed decisions, and customisation of the default HTTP decision graph. This allows it to be used on its own under Plug, or fit inside a larger framework such as Phoenix.
 
 ## Status
 
@@ -61,14 +61,6 @@ defmodule UserResource do
   end
 end
 ```
-
-## Why not just wrap cowboy_rest/webmachine?
-
-`cowboy_rest` and `webmachine` are both specific to their respective adapters, while Decanter sits on top of Plug, so can support whichever adapters Plug supports (which is currently only `cowboy`, but more are in the works).
-
-## What about Phoenix?
-
-Phoenix handles some of the format negotiation/body encoding issues, so the idea is that it will be possible to defer to Phoenix for formats/encoding, but still in Decanter for when operating outside of Phoenix.
 
 # Actions, Handlers, Decisions and Properties
 
@@ -159,11 +151,64 @@ handle_service_not_available(conn) # 503, "Service not available."
 :valid_entity_length?, do: true
 ```
 
+## Customising the decision graph
+
+Sometimes you may not care about certain parts of the full HTTP decision graph, either because they are not applicable to your application, or because they are being handled by another library in the Plug chain. A common case for this would be when running inside Phoenix, where method and content negotation/checks are performed prior to routing to the Decanter plug.
+
+### @entry_point
+
+The easiest way to customise the graph is to simply start the decisions from further down the tree, using the `@entry_point` property. `:exists?` is a fairly suitable starting point in this context.
+
+```elixir
+defmodule MyPhoenixDecanter do
+  use Decanter
+  plug :serve
+
+  @entry_point :exists?
+
+  # ...
+end
+```
+
+### Forwarding to another decision/handler
+
+Sometimes the default positioning of certain checks may not make sense for your application. Consider pages that exist in multiple formats, but have special formats available only to the user that owns them. The `:allowed?` decision is where you can delegate to the appropriate `:handle_forbidden` by returning false, but happens before content negotiation and existence checking. In this case, it would make more sense for `:exists?` to be able to also declare a resource forbidden.
+
+```elixir
+defmodule MyUserDecanter do
+  use Decanter
+  plug :fetch_session
+  plug :serve
+
+  # Mark our media types
+  @available_media_types ["text/html", "application/json"]
+
+  # We need to tell the graph builder that we are delegating to
+  # :handle_forbidden dynamically, so it can ensure it's available.
+  dynamic :handle_forbidden
+
+  decide :exists? do
+    user = get_session(conn, :user)
+    file = Models.File.get(conn.params[:file_id])
+
+    if is_nil(file) do
+      false
+    else if conn.assigns.media_type == "application/json" && file.owner.id != user.id do
+      :handle_forbidden
+    else
+      {true, assign(conn, :file, file)}
+    end
+  end
+
+  # ...
+end
+```
+
 # License and Attribution
 
 Released under the MIT License. Initial decision graph structure and content negotiation test cases attributed to [Liberator](http://clojure-liberator.github.io/liberator/).
 
-## TODO
+# TODO
 
 - [x] Inline unique decision paths.
 - [x] Detect allowed_methods from action definitions
