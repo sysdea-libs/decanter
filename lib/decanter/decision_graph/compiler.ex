@@ -8,8 +8,10 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
 
   defp add_counts(maps, name) do
-    initial_counts = for x <- maps.dynamic, do: {x, 1}, into: %{}
-    base_counts = Map.put(maps, :counts, do_visit_nodes(name, maps, initial_counts))
+    dynamic_counts = for x <- maps.dynamic, do: {x, 1}, into: %{}
+    Map.put(maps, :counts, Map.merge(do_visit_nodes(name, maps, %{}),
+                                     dynamic_counts,
+                                     fn _, a, b -> a + b end))
   end
 
   defp do_visit_nodes(name, %{nodes: nodes, decisions: decisions}=maps, acc) do
@@ -21,28 +23,19 @@ defmodule Decanter.DecisionGraph.Compiler do
           case decisions[test] do
             true -> do_visit_nodes(consequent, maps, acc)
             false -> do_visit_nodes(alternate, maps, acc)
+            handler when is_atom(handler) ->
+              do_visit_nodes(handler, maps, acc)
+              |> Map.put(name, 1)
             _body ->
               acc = do_visit_nodes(consequent, maps, acc)
-              acc = do_visit_nodes(alternate, maps, acc)
-              if acc[name] do
-                Map.put(acc, name, acc[name] + 1)
-              else
-                Map.put(acc, name, 1)
-              end
+              do_visit_nodes(alternate, maps, acc)
+              |> Map.put(name, 1)
           end
         {:handler, _status, _content} ->
-          if acc[name] do
-            Map.put(acc, name, acc[name] + 1)
-          else
-            Map.put(acc, name, 1)
-          end
+          Map.put(acc, name, 1)
         {:action, next} ->
-          acc = do_visit_nodes(next, maps, acc)
-          if acc[name] do
-            Map.put(acc, name, acc[name] + 1)
-          else
-            Map.put(acc, name, 1)
-          end
+          do_visit_nodes(next, maps, acc)
+          |> Map.put(name, 1)
       end
     end
   end

@@ -44,6 +44,14 @@ defmodule DecisionsTest.R do
   dynamic :handle_unprocessable_entity
 end
 
+defmodule DecisionsTest.Hardwired do
+  use Decanter
+
+  plug :serve
+
+  decide :service_available?, do: :handle_forbidden
+end
+
 defmodule DecisionsTest do
   use DecanterTest
 
@@ -162,5 +170,9 @@ defmodule DecisionsTest do
     assert %{status: 422,
              resp_body: "Unprocessable entity."}
            = request(DecisionsTest.R, :get, %{}, %{allowed?: :handle_unprocessable_entity})
+
+    assert %{status: 403,
+             resp_body: "Forbidden."}
+           = request(DecisionsTest.Hardwired, :get, %{}, %{})
   end
 end
