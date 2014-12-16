@@ -14,6 +14,10 @@ defmodule Decanter do
 
       defoverridable [init: 1]
 
+      # Configure context naming for decision graph
+
+      @context_name :conn
+
       # handlers
 
       handler :handle_ok, 200, "OK"

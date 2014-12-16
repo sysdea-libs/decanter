@@ -1,10 +1,13 @@
 defmodule Decanter.DecisionGraph.Compiler do
-  def compile(maps, name) do
-    {^name, trees} = maps
-                     |> add_counts(name)
-                     |> build_trees(name)
+  def compile(maps, entry_point, ctx_name) do
+    {^entry_point, trees} = maps
+                     |> add_counts(entry_point)
+                     |> build_trees(entry_point)
 
-    Enum.map(trees, &compile_tree(&1))
+    # I'm pretty sure I'm making a hash of this line.
+    ctx = %{ctx_name: quote(do: var!(unquote(Macro.var(ctx_name, Elixir))))}
+
+    Enum.map(trees, &compile_tree(ctx, &1))
   end
 
   defp add_counts(maps, name) do
@@ -117,58 +120,58 @@ defmodule Decanter.DecisionGraph.Compiler do
     end
   end
 
-  def compile_tree({name, {:tree, body}}) do
+  def compile_tree(ctx, {name, {:tree, body}}) do
     quote location: :keep do
-      defp do_decide(unquote(name), var!(conn)) do
-        unquote(compile_node body)
+      defp do_decide(unquote(name), unquote(ctx.ctx_name)) do
+        unquote(compile_node(ctx, body))
       end
     end
   end
 
-  defp compile_node({:call, name}) do
+  defp compile_node(ctx, {:call, name}) do
     quote do
-      do_decide(unquote(name), var!(conn))
+      do_decide(unquote(name), unquote(ctx.ctx_name))
     end
   end
-  defp compile_node({:block, body, consequent}) do
+  defp compile_node(ctx, {:block, body, consequent}) do
     quote location: :keep do
-      case handle_decision(var!(conn), unquote(body)) do
-        {x, conn} when is_atom(x) -> do_decide(x, conn)
-        {_, var!(conn)} -> unquote(compile_node consequent)
+      case handle_decision(unquote(ctx.ctx_name), unquote(body)) do
+        {x, context} when is_atom(x) -> do_decide(x, context)
+        {_, unquote(ctx.ctx_name)} -> unquote(compile_node(ctx, consequent))
       end
     end
   end
-  defp compile_node({:if, body, consequent, alternate}) do
+  defp compile_node(ctx, {:if, body, consequent, alternate}) do
     quote location: :keep do
       if unquote(body) do
-        unquote(compile_node consequent)
+        unquote(compile_node(ctx, consequent))
       else
-        unquote(compile_node alternate)
+        unquote(compile_node(ctx, alternate))
       end
     end
   end
-  defp compile_node({:case_dec, body, consequent, alternate}) do
+  defp compile_node(ctx, {:case_dec, body, consequent, alternate}) do
     quote location: :keep do
-      case handle_decision(var!(conn), unquote(body)) do
-        {true, var!(conn)} -> unquote(compile_node consequent)
-        {false, var!(conn)} -> unquote(compile_node alternate)
-        {handler, conn} -> do_decide(handler, conn)
+      case handle_decision(unquote(ctx.ctx_name), unquote(body)) do
+        {true, unquote(ctx.ctx_name)} -> unquote(compile_node(ctx, consequent))
+        {false, unquote(ctx.ctx_name)} -> unquote(compile_node(ctx, alternate))
+        {handler, context} -> do_decide(handler, context)
       end
     end
   end
-  defp compile_node({:handler, status, :call, name}) do
+  defp compile_node(ctx, {:handler, status, :call, name}) do
     quote do
-      unquote(name)(Plug.Conn.put_status(var!(conn), unquote(status)))
+      unquote(name)(Plug.Conn.put_status(unquote(ctx.ctx_name), unquote(status)))
     end
   end
-  defp compile_node({:handler, status, :string, content}) do
+  defp compile_node(ctx, {:handler, status, :string, content}) do
     quote do
-      Plug.Conn.resp(var!(conn), unquote(status), unquote(content))
+      Plug.Conn.resp(unquote(ctx.ctx_name), unquote(status), unquote(content))
     end
   end
-  defp compile_node({:action, name, next}) do
+  defp compile_node(ctx, {:action, name, next}) do
     quote do
-      do_decide(unquote(next), unquote(name)(var!(conn)))
+      do_decide(unquote(next), unquote(name)(unquote(ctx.ctx_name)))
     end
   end
 end

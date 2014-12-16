@@ -32,10 +32,11 @@ defmodule Decanter.DecisionGraph do
                         end)
 
     entry_name = Module.get_attribute(env.module, :entry_point)
+    context_name = Module.get_attribute(env.module, :context_name)
     Compiler.compile(%{decisions: Module.get_attribute(env.module, :decisions),
                        defs: defs,
                        nodes: Module.get_attribute(env.module, :nodes),
-                       dynamic: Module.get_attribute(env.module, :dynamic)}, entry_name)
+                       dynamic: Module.get_attribute(env.module, :dynamic)}, entry_name, context_name)
   end
 
   def generate_dot_file(nodes) do
