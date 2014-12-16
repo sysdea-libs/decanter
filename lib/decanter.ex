@@ -288,31 +288,6 @@ defmodule Decanter do
     supports_etag = Module.defines?(env.module, {:etag, 1})
     supports_last_modified = Module.defines?(env.module, {:last_modified, 1})
 
-    etag_check = if supports_etag do
-      quote do
-        if etag = var!(conn).assigns[:etag] || format_etag(etag var!(conn)) do
-          var!(conn) = put_resp_header(var!(conn), "ETag", etag)
-        else
-          var!(conn)
-        end
-      end
-    else
-      quote do var!(conn) end
-    end
-
-    last_modified_check = if supports_last_modified do
-      quote do
-        if last_modified = var!(conn).assigns[:last_modified] || last_modified(var!(conn)) do
-          put_resp_header(var!(conn), "Last-Modified",
-                          :httpd_util.rfc1123_date(last_modified) |> to_string)
-        else
-          var!(conn)
-        end
-      end
-    else
-      quote do var!(conn) end
-    end
-
     quote do
       # Auto-insert an allowed_methods property if missing
       unless Module.get_attribute(__MODULE__, :allowed_methods) do
@@ -326,50 +301,82 @@ defmodule Decanter do
       decide :supports_etag?, do: unquote(supports_etag)
       decide :supports_last_modified?, do: unquote(supports_last_modified)
 
-      # Generate entry point
-      def serve(var!(conn), opts) do
-        mapped_headers = Enum.into(var!(conn).req_headers, %{})
-
-        # root specifies the actual root handler once ellision has taken place
-        var!(conn) = do_decide(@entry_point, var!(conn)
-                                             |> assign(:headers, mapped_headers)
-                                             |> assign(:opts, opts))
-
-        conn = unquote(etag_check)
-        conn = unquote(last_modified_check)
-
-        if conn.method == "OPTIONS" or conn.status == 405 do
-          conn = put_resp_header(conn, "Allow", Enum.join(@allowed_methods, ","))
-          if @patch_content_types do
-            conn = put_resp_header(conn, "Accept-Patch", Enum.join(@patch_content_types, ","))
+      if unquote(supports_etag) do
+        defp annotate_etag(conn) do
+          case conn.assigns[:etag] || format_etag(etag conn) do
+            nil -> conn
+            etag -> put_resp_header(conn, "ETag", etag)
           end
         end
+      else
+        defp annotate_etag(conn), do: conn
+      end
 
-        {vary, conn} = case conn.assigns do
-          %{media_type: media_type, charset: charset} ->
-            {["Accept-Charset", "Accept"],
-             put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}")}
-          %{media_type: media_type} ->
-            {["Accept"],
-             put_resp_header(conn, "Content-Type", media_type)}
-          _ -> {[], conn}
+      if unquote(supports_last_modified) do
+        defp annotate_last_modified(conn) do
+          case conn.assigns[:last_modified] || last_modified(conn) do
+            nil -> conn
+            last_modified ->
+              put_resp_header(conn, "Last-Modified",
+                              :httpd_util.rfc1123_date(last_modified) |> to_string)
+          end
         end
+      else
+        defp annotate_last_modified(conn), do: conn
+      end
 
-        if language = conn.assigns[:language] do
-          vary = ["Accept-Language"|vary]
-          conn = put_resp_header(conn, "Content-Language", language)
+      # Generate entry point
+      def serve(conn, opts) do
+        # root specifies the actual root handler once ellision has taken place
+        do_decide(@entry_point, conn
+                                |> assign(:headers, Enum.into(conn.req_headers, %{}))
+                                |> assign(:opts, opts))
+        |> annotate_etag
+        |> annotate_last_modified
+        |> annotate_allow
+        |> postprocess_serve
+      end
+
+      defp annotate_allow(%{method: method, status: status}=conn)
+                                  when method == "OPTIONS" or status == 405 do
+        case @patch_content_types do
+          nil -> conn
+          types -> put_resp_header(conn, "Accept-Patch", Enum.join(types, ","))
         end
+        |> put_resp_header("Allow", Enum.join(@allowed_methods, ","))
+      end
+      defp annotate_allow(conn), do: conn
 
-        if conn.assigns[:encoding] && conn.assigns[:encoding] != "identity" do
-          vary = ["Accept-Encoding"|vary]
-          conn = put_resp_header(conn, "Content-Encoding", conn.assigns[:encoding])
+      defp postprocess_serve(conn) do
+        postprocess_serve(conn.assigns, conn, [])
+      end
+
+      defp postprocess_serve(%{media_type: media_type, charset: charset}=assigns, conn, vary) do
+        postprocess_serve(Map.delete(assigns, :media_type) |> Map.delete(:charset),
+                   put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
+                   ["Accept-Charset","Accept"|vary])
+      end
+      defp postprocess_serve(%{media_type: media_type}=assigns, conn, vary) do
+        postprocess_serve(Map.delete(assigns, :media_type),
+                   put_resp_header(conn, "Content-Type", media_type),
+                   ["Accept"|vary])
+      end
+      defp postprocess_serve(%{language: language}=assigns, conn, vary) do
+        postprocess_serve(Map.delete(assigns, :language),
+                   put_resp_header(conn, "Content-Language", language),
+                   ["Content-Language"|vary])
+      end
+      defp postprocess_serve(%{encoding: encoding}=assigns, conn, vary) do
+        postprocess_serve(Map.delete(assigns, :encoding),
+                   put_resp_header(conn, "Content-Encoding", encoding),
+                   ["Content-Encoding"|vary])
+      end
+
+      defp postprocess_serve(_assigns, conn, vary) do
+        case vary do
+          [] -> conn
+          vary -> put_resp_header(conn, "Vary", Enum.join(vary, ","))
         end
-
-        unless Enum.empty?(vary) do
-          conn = put_resp_header(conn, "Vary", Enum.join(vary, ","))
-        end
-
-        conn
       end
     end
   end
