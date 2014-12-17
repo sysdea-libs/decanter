@@ -13,13 +13,7 @@ defmodule Decanter.ConnectionNegotiator do
     scored = Enum.map(available, &score(mode, parts, &1))
              |> Enum.reject(&is_nil/1)
 
-    {stabilised,_} = Enum.reduce scored, {[], 0},
-                      fn
-                        ({0.0, _}, acc) -> acc
-                        ({q, v}, {r, dq}) -> {[{q+dq, v}|r], dq+0.01}
-                      end
-
-    case Enum.sort(stabilised) |> List.first do
+    case :lists.keysort(1, scored) |> List.first do
       nil -> nil
       {_, result} -> do_format(mode, result)
     end
@@ -95,6 +89,7 @@ defmodule Decanter.ConnectionNegotiator do
          |> List.first do
       nil -> nil
       {0, _, _} -> nil
+      {_,0.0,_} -> nil
       {_,q,accept} -> {q, accept}
     end
   end
