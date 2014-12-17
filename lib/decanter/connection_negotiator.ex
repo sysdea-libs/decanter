@@ -4,16 +4,30 @@ defmodule Decanter.ConnectionNegotiator do
   @type parsed_part   :: String.t | {String.t, String.t}
   @type q_parsed_part :: {float, parsed_part}
 
-  @spec find_best(mode, String.t, [String.t]) :: nil | String.t
+  @spec find_best(mode, String.t, [String.t]) :: String.t | nil
   def find_best(mode, header, choices) do
-    parts = set_client_defaults(mode, parse_header(header, mode))
+    parts = set_client_defaults(mode, parse_header(mode, header))
+            |> Enum.filter(fn {0.0,_} -> false
+                              _ -> true end)
     available = set_server_defaults(mode, choices)
                 |> Enum.map(&simple_parse(mode, &1))
 
-    scored = Enum.map(available, &score(mode, parts, &1))
-             |> Enum.reject(&is_nil/1)
+    do_find_best(mode, parts, available, [])
+  end
 
-    case :lists.keysort(1, scored) |> List.first do
+  @spec do_find_best(mode, [q_parsed_part], [parsed_part], [q_parsed_part]) :: String.t | nil
+  defp do_find_best(mode, parts, [nil|rest], candidates) do
+    do_find_best(mode, parts, rest, candidates)
+  end
+  defp do_find_best(mode, parts, [head|rest], candidates) do
+    case score(mode, parts, head) do
+      nil       -> do_find_best(mode, parts, rest, candidates)
+      {-1.0, v} -> do_format(mode, v)
+      candidate -> do_find_best(mode, parts, rest, [candidate|candidates])
+    end
+  end
+  defp do_find_best(mode, _, _, candidates) do
+    case :lists.keysort(1, Enum.reverse(candidates)) |> List.first do
       nil -> nil
       {_, result} -> do_format(mode, result)
     end
@@ -82,26 +96,26 @@ defmodule Decanter.ConnectionNegotiator do
   end
 
   # Generate a score for a server accept given client parts
-  @spec score(mode, [parsed_part], parsed_part) :: q_parsed_part | nil
+  @spec score(mode, [q_parsed_part], parsed_part) :: q_parsed_part | nil
   defp score(_, [], _), do: nil
   defp score(_, _, []), do: nil
   defp score(mode, parts, accept) do
-    candidate = for {q, v} <- parts do
-                  case q do
-                    0.0 -> {0, nil, nil}
-                    _ ->
-                      {quality, v} = do_score(mode, accept, v)
-                      {quality, q, v}
-                  end
-                end
-                |> Enum.sort
-                |> List.first
+    score(mode, parts, accept, nil)
+  end
 
-    case candidate do
-      {0, _, _} -> nil
-      {_, q, accept} -> {q, accept}
+  defp score(mode, [{q, part}|parts], accept, best) do
+    {quality, v} = do_score(mode, accept, part)
+    case quality do
+      0 -> score(mode, parts, accept, best)
+      -1 ->
+        case best do
+          {bq, _} when q < bq -> score(mode, parts, accept, best)
+          _ -> score(mode, parts, accept, {q, v})
+        end
+      -2 -> {q, v}
     end
   end
+  defp score(_, _, _, best), do: best
 
   # Generate a {quality, result} tuple from a client part and server accept
   @spec do_score(mode, parsed_part, parsed_part) :: {integer, parsed_part | nil}
@@ -140,30 +154,24 @@ defmodule Decanter.ConnectionNegotiator do
   end
 
   # Parse a header into q/header tuples
-  @spec parse_header(String.t, mode) :: [q_parsed_part]
-  defp parse_header(header, mode) do
-    parse_header_parts(String.split(header, ","), [], mode)
+  @spec parse_header(mode, String.t) :: [q_parsed_part]
+  defp parse_header(mode, header) do
+    parse_header_parts(mode, String.split(header, ","), [])
   end
 
-  @spec parse_header_parts([String.t], [q_parsed_part], mode) :: [q_parsed_part]
-  defp parse_header_parts([part|rest], acc, mode) do
-    case String.split(String.strip(part), ";") do
-      [part] ->
-        parse_part(rest, acc, mode, -1.0, part)
-      [part, args] ->
-        parse_part(rest, acc, mode, -parse_q(Plug.Conn.Utils.params(args)), part)
+  @spec parse_header_parts(mode, [String.t], [q_parsed_part]) :: [q_parsed_part]
+  defp parse_header_parts(mode, [part|rest], acc) do
+    {q, part} = case String.split(String.strip(part), ";") do
+      [part] -> {-1.0, part}
+      [part, args] -> {-parse_q(Plug.Conn.Utils.params(args)), part}
     end
-  end
-  defp parse_header_parts([], acc, _) do
-    Enum.sort(acc)
-  end
-
-  @spec parse_part([String.t], [q_parsed_part], mode, float, parsed_part) :: [q_parsed_part]
-  defp parse_part(rest, acc, mode, q, part) do
     case parse(mode, part) do
-      {:ok, v} -> parse_header_parts(rest, [{q, v}|acc], mode)
-      :error -> parse_header_parts(rest, acc, mode)
+      {:ok, v} -> parse_header_parts(mode, rest, [{q, v}|acc])
+      :error -> parse_header_parts(mode, rest, acc)
     end
+  end
+  defp parse_header_parts(_, [], acc) do
+    :lists.keysort(1, Enum.reverse(acc))
   end
 
   @spec parse_q(%{}) :: float
