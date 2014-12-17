@@ -61,7 +61,7 @@ defmodule SimpleBench do
     conneg = put_req_header(conn(:get, "/"), "accept",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
     start = :erlang.now
-    for _ <- 0..2500 do
+    for _ <- 0..3000 do
       SimpleBench.ConNeg.call(conneg, nil)
     end
     finish = :erlang.now
@@ -70,7 +70,7 @@ defmodule SimpleBench do
              status: 200,
              resp_headers: %{"Content-Type" => "text/html"}}
            = rawrequest(SimpleBench.ConNeg, conneg)
-    print_time "2.5k conneg", start, finish
+    print_time "3k conneg", start, finish
 
     get = conn(:get, "/")
     start = :erlang.now

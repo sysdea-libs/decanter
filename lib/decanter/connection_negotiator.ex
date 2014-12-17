@@ -33,18 +33,6 @@ defmodule Decanter.ConnectionNegotiator do
     end
   end
 
-  # Parse a part into an intermediate representation
-  @spec parse(mode, String.t) :: {:ok, parsed_part} | :error
-  defp parse(:accept, part) do
-    case Plug.Conn.Utils.media_type(part) do
-      {:ok, type, subtype, _} -> {:ok, {type, subtype}}
-      :error -> :error
-    end
-  end
-  defp parse(_, part) do
-    {:ok, part}
-  end
-
   # Insert default client expectations
   @spec set_client_defaults(mode, [q_parsed_part]) :: [q_parsed_part]
   defp set_client_defaults(:charset, parts) do
@@ -82,7 +70,7 @@ defmodule Decanter.ConnectionNegotiator do
   # Simple extractor method for user choices
   @spec simple_parse(mode, String.t) :: parsed_part
   defp simple_parse(mode, part) do
-    {:ok, v} = parse(mode, part)
+    {_q, v} = parse(mode, part)
     v
   end
 
@@ -156,22 +144,33 @@ defmodule Decanter.ConnectionNegotiator do
   # Parse a header into q/header tuples
   @spec parse_header(mode, String.t) :: [q_parsed_part]
   defp parse_header(mode, header) do
-    parse_header_parts(mode, String.split(header, ","), [])
+    parse_header_parts(mode, Plug.Conn.Utils.list(header), [])
   end
 
   @spec parse_header_parts(mode, [String.t], [q_parsed_part]) :: [q_parsed_part]
   defp parse_header_parts(mode, [part|rest], acc) do
-    {q, part} = case String.split(String.strip(part), ";") do
-      [part] -> {-1.0, part}
-      [part, args] -> {-parse_q(Plug.Conn.Utils.params(args)), part}
-    end
     case parse(mode, part) do
-      {:ok, v} -> parse_header_parts(mode, rest, [{q, v}|acc])
       :error -> parse_header_parts(mode, rest, acc)
+      v -> parse_header_parts(mode, rest, [v|acc])
     end
   end
   defp parse_header_parts(_, [], acc) do
     :lists.keysort(1, Enum.reverse(acc))
+  end
+
+  # Parse a part into an intermediate representation
+  @spec parse(mode, String.t) :: q_parsed_part | :error
+  defp parse(:accept, part) do
+    case Plug.Conn.Utils.media_type(part) do
+      {:ok, type, subtype, args} -> {-parse_q(args), {type, subtype}}
+      :error -> :error
+    end
+  end
+  defp parse(_, part) do
+    case String.split(String.strip(part), ";") do
+      [part] -> {-1.0, part}
+      [part, args] -> {-parse_q(Plug.Conn.Utils.params(args)), part}
+    end
   end
 
   @spec parse_q(%{}) :: float
