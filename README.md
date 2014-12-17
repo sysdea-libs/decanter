@@ -32,7 +32,9 @@ defmodule UserResource do
     Map.has_key?(get_session(conn), :user)
   end
 
-  decide :exists? do
+  # The `decide` macro inlines the tests and can optimise away constants.
+  # Longer decisions can be defined normally to support pattern matching on the conn.
+  def exists?(conn) do
     # Would defer to something like Plug.Router ordinarily
     ["user", id] = conn.path_info
     case @my_values[id] do
@@ -84,7 +86,7 @@ last_modified(conn) # should be an erlang style {date(),time()} or nil
 
 # actions with their following decision point
 
-post(conn) # => :post_redirect?
+post(conn) # => :new?
 patch(conn) # => :respond_with_entity?
 put(conn) # => :new?
 delete(conn) # => :delete_enacted?
