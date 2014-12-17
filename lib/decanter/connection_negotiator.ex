@@ -103,7 +103,7 @@ defmodule Decanter.ConnectionNegotiator do
     end
   end
 
-  # Generate a {quality, qscore, result} tuple from a client part and server accept
+  # Generate a {quality, result} tuple from a client part and server accept
   @spec do_score(mode, parsed_part, parsed_part) :: {integer, parsed_part | nil}
   defp do_score(:accept, {t, st}, {pt, pst}) do
     case {pt, pst, t, st} do
