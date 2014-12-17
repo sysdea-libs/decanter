@@ -83,50 +83,59 @@ defmodule Decanter.ConnectionNegotiator do
 
   # Generate a score for a server accept given client parts
   @spec score(mode, [parsed_part], parsed_part) :: q_parsed_part | nil
+  defp score(_, [], _), do: nil
+  defp score(_, _, []), do: nil
   defp score(mode, parts, accept) do
-    case Enum.map(parts, &do_score(mode, accept, &1))
-         |> Enum.sort
-         |> List.first do
-      nil -> nil
+    candidate = for {q, v} <- parts do
+                  case q do
+                    0.0 -> {0, nil, nil}
+                    _ ->
+                      {quality, v} = do_score(mode, accept, v)
+                      {quality, q, v}
+                  end
+                end
+                |> Enum.sort
+                |> List.first
+
+    case candidate do
       {0, _, _} -> nil
-      {_,0.0,_} -> nil
-      {_,q,accept} -> {q, accept}
+      {_, q, accept} -> {q, accept}
     end
   end
 
   # Generate a {quality, qscore, result} tuple from a client part and server accept
-  @spec do_score(mode, parsed_part, q_parsed_part) :: {float, nil | float, nil | parsed_part}
-  defp do_score(:accept, {t, st}, {q, {pt, pst}}) do
+  @spec do_score(mode, parsed_part, parsed_part) :: {integer, parsed_part | nil}
+  defp do_score(:accept, {t, st}, {pt, pst}) do
     case {pt, pst, t, st} do
       # Don't generate an accepted type with wildcards
-      {"*", "*", "*", "*"} -> {0, nil, nil}
-      {_, "*", _, "*"} -> {0, nil, nil}
+      {"*",  _, "*",  _ } -> {0, nil}
+      { _,  "*",  _, "*"} -> {0, nil}
 
       # usual client wildcards
-      {"*", "*", _, _} -> {-1.0, q, {t, st}}
-      {^t, "*", _, _} -> {-1.0, q, {t, st}}
-      {^t, ^st, _, _} -> {-1.0, q, {t, st}}
+      {"*", "*", t, st} -> {-2, {t, st}}
+      {^t,  "*", t, st} -> {-2, {t, st}}
+      {^t,  ^st, t, st} -> {-2, {t, st}}
 
       # server wildcards
-      {t, st, "*", "*"} -> {-1.0, q, {t, st}}
-      {^t, st, ^t, "*"} -> {-1.0, q, {t, st}}
+      {t, st, "*", "*"} -> {-2, {t, st}}
+      {t, st,  t,  "*"} -> {-2, {t, st}}
 
-      _ -> {0, nil, nil}
+      _ -> {0, nil}
     end
   end
-  defp do_score(:language, accept, {q, part}) do
+  defp do_score(:language, accept, part) do
     case accept do
-      <<^part::binary-size(2), _rest::binary>> -> {-0.5, q, accept}
-      ^part -> {-1.0, q, accept}
-      _ -> {0, nil, nil}
+      <<^part::binary-size(2), _rest::binary>> -> {-1, accept}
+      ^part -> {-2, accept}
+      _ -> {0, nil}
     end
   end
-  defp do_score(_, accept, {q, part}) do
+  defp do_score(_, accept, part) do
     downcase_accept = String.downcase(accept)
     case String.downcase(part) do
-      ^downcase_accept -> {-1.0, q, accept}
-      "*" -> {-0.5, q, accept}
-      _ -> {0, nil, nil}
+      ^downcase_accept -> {-2, accept}
+      "*" -> {-1, accept}
+      _ -> {0, nil}
     end
   end
 
