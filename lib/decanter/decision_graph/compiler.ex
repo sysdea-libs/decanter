@@ -3,7 +3,11 @@ defmodule Decanter.DecisionGraph.Compiler do
     trees = build_trees(maps, options)
 
     # I'm pretty sure I'm making a hash of this line.
-    compile_opts = %{ctx_name: quote(do: var!(unquote(Macro.var(options[:ctx_name], Elixir))))}
+    compile_opts = %{
+      ctx_name: quote do
+        var!(unquote(Macro.var(options[:ctx_name], nil)))
+      end
+    }
 
     Enum.map(trees, &compile_tree(&1, compile_opts))
   end
@@ -20,42 +24,37 @@ defmodule Decanter.DecisionGraph.Compiler do
     else
       case nodes[name] do
         {:branch, test, consequent, alternate} ->
-          case decisions[test] do
-            true ->
+          case {Set.member?(defs, test), decisions[test]} do
+            {false, true} ->
               {inner_name, trees} = do_build_trees(consequent, maps, trees, options)
               {name, Map.put(trees, name, trees[inner_name])
                      |> Map.delete(inner_name)}
-            false ->
+            {false, false} ->
               {inner_name, trees} = do_build_trees(alternate, maps, trees, options)
               {name, Map.put(trees, name, trees[inner_name])
                      |> Map.delete(inner_name)}
-            handler when is_atom(handler) ->
+            {false, handler} when is_atom(handler) ->
               {inner_name, trees} = do_build_trees(handler, maps, trees, options)
               {name, Map.put(trees, name, trees[inner_name])
                      |> Map.delete(inner_name)}
-            body ->
+            {has_fn, test_body} ->
               {consequent, trees} = do_build_trees(consequent, maps, trees, options)
               {alternate, trees} = do_build_trees(alternate, maps, trees, options)
               consequent_body = {:call, consequent}
               alternate_body = {:call, alternate}
 
-              same_path = consequent == alternate
-
-              strategy = case body do
-                {:==, _, _} -> :if
-                {:in, _, _} -> :if
-                _ -> :case
+              {test_body, strategy} = case {has_fn, test_body} do
+                {true, _}        -> {{:dec_fn, test}, :case}
+                {_, {:==, _, _}} -> {{:inline, test_body}, :if}
+                {_, {:in, _, _}} -> {{:inline, test_body}, :if}
+                _                -> {{:inline, test_body}, :case}
               end
 
-              body = case {same_path, strategy} do
-                {true, :if} ->
-                  consequent_body
-                {true, :case} ->
-                  {:block, body, consequent_body}
-                {false, :if} ->
-                  {:if, body, consequent_body, alternate_body}
-                {false, :case} ->
-                  {:case_dec, body, consequent_body, alternate_body}
+              body = case {consequent == alternate, strategy} do
+                {true, :if}    -> consequent_body
+                {true, :case}  -> {:block, test_body, consequent_body}
+                {false, :if}   -> {:if, test_body, consequent_body, alternate_body}
+                {false, :case} -> {:case_dec, test_body, consequent_body, alternate_body}
               end
 
               {name, Map.put(trees, name, {:tree, body})}
@@ -88,26 +87,34 @@ defmodule Decanter.DecisionGraph.Compiler do
       do_decide(unquote(name), unquote(options.ctx_name))
     end
   end
-  defp compile_node({:block, body, consequent}, options) do
+  defp compile_node({:dec_fn, test}, options) do
     quote location: :keep do
-      case handle_decision(unquote(options.ctx_name), unquote(body)) do
+      unquote(test)(unquote(options.ctx_name))
+    end
+  end
+  defp compile_node({:inline, body}, options) do
+    body
+  end
+  defp compile_node({:block, test, consequent}, options) do
+    quote location: :keep do
+      case handle_decision(unquote(options.ctx_name), unquote(compile_node(test, options))) do
         {x, context} when is_atom(x) -> do_decide(x, context)
         {_, unquote(options.ctx_name)} -> unquote(compile_node(consequent, options))
       end
     end
   end
-  defp compile_node({:if, body, consequent, alternate}, options) do
+  defp compile_node({:if, test, consequent, alternate}, options) do
     quote location: :keep do
-      if unquote(body) do
+      if unquote(compile_node(test, options)) do
         unquote(compile_node(consequent, options))
       else
         unquote(compile_node(alternate, options))
       end
     end
   end
-  defp compile_node({:case_dec, body, consequent, alternate}, options) do
+  defp compile_node({:case_dec, test, consequent, alternate}, options) do
     quote location: :keep do
-      case handle_decision(unquote(options.ctx_name), unquote(body)) do
+      case handle_decision(unquote(options.ctx_name), unquote(compile_node(test, options))) do
         {true, unquote(options.ctx_name)} -> unquote(compile_node(consequent, options))
         {false, unquote(options.ctx_name)} -> unquote(compile_node(alternate, options))
         {handler, context} -> do_decide(handler, context)

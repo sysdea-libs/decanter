@@ -11,7 +11,10 @@ defmodule DecisionsTest.R do
     end
   end
 
-  decide :allowed?, do: check_setting(conn, :allowed?, true)
+  # use allowed? also as simple test of function vs inline deciders
+  def allowed?(conn) do
+    check_setting(conn, :allowed?, true)
+  end
   decide :authorized?, do: check_setting(conn, :authorized?, true)
   decide :can_post_to_gone?, do: check_setting(conn, :can_post_to_gone?, true)
   decide :can_post_to_missing?, do: check_setting(conn, :can_post_to_missing?, true)
