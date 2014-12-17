@@ -25,18 +25,19 @@ defmodule Decanter.DecisionGraph.Compiler do
       case nodes[name] do
         {:branch, test, consequent, alternate} ->
           case {Set.member?(defs, test), decisions[test]} do
-            {false, true} ->
-              {inner_name, trees} = do_build_trees(consequent, maps, trees, options)
-              {name, Map.put(trees, name, trees[inner_name])
-                     |> Map.delete(inner_name)}
-            {false, false} ->
-              {inner_name, trees} = do_build_trees(alternate, maps, trees, options)
-              {name, Map.put(trees, name, trees[inner_name])
-                     |> Map.delete(inner_name)}
-            {false, handler} when is_atom(handler) ->
-              {inner_name, trees} = do_build_trees(handler, maps, trees, options)
-              {name, Map.put(trees, name, trees[inner_name])
-                     |> Map.delete(inner_name)}
+            {false, test_body} when is_boolean(test_body) or is_atom(test_body) ->
+              inner = case test_body do
+                true -> consequent
+                false -> alternate
+                handler -> handler
+              end
+              {inner_name, trees} = do_build_trees(inner, maps, trees, options)
+
+              case Set.member?(dynamic, inner_name) do
+                true -> {inner_name, trees}
+                false -> {name, Map.put(trees, name, trees[inner_name])
+                                |> Map.delete(inner_name)}
+              end
             {has_fn, test_body} ->
               {consequent, trees} = do_build_trees(consequent, maps, trees, options)
               {alternate, trees} = do_build_trees(alternate, maps, trees, options)
