@@ -18,7 +18,7 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
 
   defp do_build_trees(name, %{nodes: nodes, decisions: decisions,
-                              defs: defs}=maps, trees, options) do
+                              defs: defs, dynamic: dynamic}=maps, trees, options) do
     if trees[name] do
       {name, trees}
     else

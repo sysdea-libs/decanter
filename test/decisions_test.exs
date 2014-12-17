@@ -43,8 +43,6 @@ defmodule DecisionsTest.R do
   def post(conn), do: conn
   def patch(conn), do: conn
   def delete(conn), do: conn
-
-  dynamic :handle_unprocessable_entity
 end
 
 defmodule DecisionsTest.Hardwired do
@@ -53,6 +51,18 @@ defmodule DecisionsTest.Hardwired do
   plug :serve
 
   decide :service_available?, do: :handle_forbidden
+end
+
+defmodule DecisionsTest.Dynamic do
+  use Decanter
+
+  plug :serve
+
+  def service_available?(_conn) do
+    :allowed?
+  end
+
+  dynamic :allowed?
 end
 
 defmodule DecisionsTest.EntryPoint do
@@ -185,6 +195,12 @@ defmodule DecisionsTest do
     assert %{status: 403,
              resp_body: "Forbidden."}
            = request(DecisionsTest.Hardwired, :get, %{}, %{})
+  end
+
+  test "dynamic" do
+    assert %{status: 200,
+             resp_body: "OK"}
+           = request(DecisionsTest.Dynamic, :get, %{}, %{})
   end
 
   test "entry_point override" do
