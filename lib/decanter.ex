@@ -139,26 +139,26 @@ defmodule Decanter do
       decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
       decision :processable?, :exists?, :handle_unprocessable_entity
       decision :encoding_available?, :processable?, :handle_not_acceptable do
-        encoding = ConNeg.find_best(:encoding,
+        encoding = ConNeg.negotiate(:encoding,
                                     var!(conn).assigns.headers["accept-encoding"],
                                     @available_encodings)
         {true, assign(var!(conn), :encoding, encoding)}
       end
       decision :accept_encoding_exists?, :encoding_available?, :processable?
       decision :charset_available?, :accept_encoding_exists?, :handle_not_acceptable do
-        charset = ConNeg.find_best(:charset, var!(conn).assigns.headers["accept-charset"], @available_charsets)
+        charset = ConNeg.negotiate(:charset, var!(conn).assigns.headers["accept-charset"], @available_charsets)
         {!is_nil(charset), assign(var!(conn), :charset, charset)}
       end
       decision :accept_charset_exists?, :charset_available?, :accept_encoding_exists?
       decision :language_available?, :accept_charset_exists?, :handle_not_acceptable do
-        language = ConNeg.find_best(:language,
+        language = ConNeg.negotiate(:language,
                                     var!(conn).assigns.headers["accept-language"],
                                     @available_languages)
         {!is_nil(language), assign(var!(conn), :language, language)}
       end
       decision :accept_language_exists?, :language_available?, :accept_charset_exists?
       decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
-        case ConNeg.find_best(:accept, var!(conn).assigns.headers["accept"], @available_media_types) do
+        case ConNeg.negotiate(:media_type, var!(conn).assigns.headers["accept"], @available_media_types) do
           nil -> false
           media_type -> {true, assign(var!(conn), :media_type, media_type)}
         end
@@ -167,7 +167,7 @@ defmodule Decanter do
         if has_header(var!(conn), "accept") do
           true
         else
-          case ConNeg.find_best(:accept, "*/*", @available_media_types) do
+          case ConNeg.negotiate(:media_type, "*/*", @available_media_types) do
             nil -> :handle_not_acceptable # bail out
             media_type -> {false, assign(var!(conn), :media_type, media_type)}
           end

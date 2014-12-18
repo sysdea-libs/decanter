@@ -1,15 +1,16 @@
 defmodule ConnectionNegotiatorTest do
   use ExUnit.Case
-  require Decanter.ConnectionNegotiator, as: ConNeg
+  import Decanter.ConnectionNegotiator
+  doctest Decanter.ConnectionNegotiator
 
   def test_neg(mode, table) do
     for {input, accepts, expected} <- table do
-      assert ConNeg.find_best(mode, input, accepts) == expected
+      assert negotiate(mode, input, accepts) == expected
     end
   end
 
   test "accept" do
-    test_neg(:accept,
+    test_neg(:media_type,
              [{"text/html", ["text/html", "application/json"], "text/html"},
               {"text/*", ["text/html", "application/json"], "text/html"},
               {"text/html", ["*/*"], "text/html"},

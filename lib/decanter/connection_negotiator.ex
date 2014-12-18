@@ -1,32 +1,54 @@
 defmodule Decanter.ConnectionNegotiator do
+  @moduledoc """
+  Negotiator for agreeing values between client and server.
+  """
 
-  @type mode          :: :accept | :charset | :encoding | :language
+  @type mode          :: :media_type | :charset | :encoding | :language
   @type parsed_part   :: String.t | {String.t, String.t}
   @type q_parsed_part :: {float, parsed_part}
 
-  @spec find_best(mode, String.t, [String.t]) :: String.t | nil
-  def find_best(mode, header, choices) do
-    parts = set_client_defaults(mode, parse_header(mode, header))
-            |> Enum.filter(fn {0.0,_} -> false
-                              _ -> true end)
+  @doc ~S"""
+  Finds the best match given the client header and server availabilities.
+
+  ## Examples
+
+      iex> negotiate :media_type, "text/*", ["text/html", "application/json"]
+      "text/html"
+
+      iex> negotiate :charset, "iso-8859-5, unicode-1-1;q=0.8", ["iso-8859-5", "unicode-1-1"]
+      "iso-8859-5"
+
+      iex> negotiate :encoding, "identity, compress;q=0.4, gzip;q=0.8", ["compress", "gzip"]
+      "identity"
+
+      iex> negotiate :language, "da, en-gb;q=0.8, en;q=0.7", ["da", "en-gb", "en"]
+      "da"
+
+  """
+  @spec negotiate(mode, String.t, [String.t]) :: String.t | nil
+  def negotiate(mode, header, choices) do
     available = set_server_defaults(mode, choices)
                 |> Enum.map(&simple_parse(mode, &1))
 
-    do_find_best(mode, parts, available, [])
+    parts = set_client_defaults(mode, parse_header(mode, header))
+            |> Enum.filter(fn {0.0,_} -> false
+                              _ -> true end)
+
+    do_negotiate(mode, parts, available, [])
   end
 
-  @spec do_find_best(mode, [q_parsed_part], [parsed_part], [q_parsed_part]) :: String.t | nil
-  defp do_find_best(mode, parts, [nil|rest], candidates) do
-    do_find_best(mode, parts, rest, candidates)
+  @spec do_negotiate(mode, [q_parsed_part], [parsed_part], [q_parsed_part]) :: String.t | nil
+  defp do_negotiate(mode, parts, [nil|rest], candidates) do
+    do_negotiate(mode, parts, rest, candidates)
   end
-  defp do_find_best(mode, parts, [head|rest], candidates) do
+  defp do_negotiate(mode, parts, [head|rest], candidates) do
     case score(mode, parts, head) do
-      nil       -> do_find_best(mode, parts, rest, candidates)
+      nil       -> do_negotiate(mode, parts, rest, candidates)
       {-1.0, v} -> do_format(mode, v)
-      candidate -> do_find_best(mode, parts, rest, [candidate|candidates])
+      candidate -> do_negotiate(mode, parts, rest, [candidate|candidates])
     end
   end
-  defp do_find_best(mode, _, _, candidates) do
+  defp do_negotiate(mode, _, _, candidates) do
     case :lists.keysort(1, Enum.reverse(candidates)) |> List.first do
       nil -> nil
       {_, result} -> do_format(mode, result)
@@ -76,7 +98,7 @@ defmodule Decanter.ConnectionNegotiator do
 
   # Format a result
   @spec do_format(mode, parsed_part) :: String.t
-  defp do_format(:accept, {t, st}), do: "#{t}/#{st}"
+  defp do_format(:media_type, {t, st}), do: "#{t}/#{st}"
   defp do_format(_, result), do: result
 
   # Generate a score for a server accept given client parts
@@ -103,7 +125,7 @@ defmodule Decanter.ConnectionNegotiator do
 
   # Generate a {quality, result} tuple from a client part and server accept
   @spec do_score(mode, parsed_part, parsed_part) :: {integer, parsed_part | nil}
-  defp do_score(:accept, {t, st}, {pt, pst}) do
+  defp do_score(:media_type, {t, st}, {pt, pst}) do
     case {pt, pst, t, st} do
       # Don't generate an accepted type with wildcards
       {"*",  _, "*",  _ } -> {0, nil}
@@ -162,7 +184,7 @@ defmodule Decanter.ConnectionNegotiator do
 
   # Parse a part into an intermediate representation
   @spec parse(mode, String.t) :: q_parsed_part | :error
-  defp parse(:accept, part) do
+  defp parse(:media_type, part) do
     case Plug.Conn.Utils.media_type(part) do
       {:ok, type, subtype, args} -> {-parse_q(args), {type, subtype}}
       :error -> :error
