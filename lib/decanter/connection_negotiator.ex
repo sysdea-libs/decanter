@@ -168,21 +168,9 @@ defmodule Decanter.ConnectionNegotiator do
       :error -> :error
     end
   end
-  defp parse(:language, part) do
-    case Decanter.ConnectionNegotiator.Utils.language(part) do
+  defp parse(_, part) do
+    case Decanter.ConnectionNegotiator.Utils.header_value(part) do
       {:ok, lang_string, args} -> {-parse_q(args), lang_string}
-      :error -> :error
-    end
-  end
-  defp parse(:charset, part) do
-    case Decanter.ConnectionNegotiator.Utils.charset(part) do
-      {:ok, charset, args} -> {-parse_q(args), charset}
-      :error -> :error
-    end
-  end
-  defp parse(:encoding, part) do
-    case Decanter.ConnectionNegotiator.Utils.encoding(part) do
-      {:ok, encoding, args} -> {-parse_q(args), encoding}
       :error -> :error
     end
   end
