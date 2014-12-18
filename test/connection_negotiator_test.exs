@@ -13,9 +13,11 @@ defmodule ConnectionNegotiatorTest do
              [{"text/html", ["text/html", "application/json"], "text/html"},
               {"text/*", ["text/html", "application/json"], "text/html"},
               {"text/html", ["*/*"], "text/html"},
+              {"text/html;q=0.5,application/json", ["*/*"], "application/json"},
               {"text/*", ["*/*"], nil},
               {"a/b/c", ["text/html"], nil},
               {"*/*", ["*/*"], nil},
+              {"*/*", ["*/*", "text/html"], "text/html"},
               {"*/*", ["text/html", "application/json"], "text/html"},
               {"text/html", ["text/*", "application/json"], "text/html"},
               {"application/json", ["text/html", "application/json"], "application/json"}])
@@ -71,7 +73,8 @@ defmodule ConnectionNegotiatorTest do
         {"da, en-gb;q=0.8, en;q=0.7", ["en-gb", "en"], "en-gb"},
         {"da, en-gb;q=0.8, en;q=0.7", ["en"], "en"},
         {"da, en-gb;q=0.8", ["en-cockney"], nil},
-        {"da, en-gb;q=0.8, en;q=0.7", ["en-cockney"], "en-cockney"} ])
+        {"da, en-gb;q=0.8, en;q=0.7", ["en-cockney"], "en-cockney"},
+        {"DA", ["dA"], "da"} ])
 
       # TODO: multi-language accepts
   end
