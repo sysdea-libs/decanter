@@ -77,8 +77,6 @@ defmodule Decanter.ConnectionNegotiator do
   # Format a result
   @spec do_format(mode, parsed_part) :: String.t
   defp do_format(:accept, {t, st}), do: "#{t}/#{st}"
-  defp do_format(:language, {p, nil}), do: p
-  defp do_format(:language, {p, s}), do: "#{p}-#{s}"
   defp do_format(_, result), do: result
 
   # Generate a score for a server accept given client parts
@@ -125,18 +123,15 @@ defmodule Decanter.ConnectionNegotiator do
   end
   defp do_score(:language, server, client) do
     case {client, server} do
-      {{"*", _}, {"*", _}} -> {0, nil}
-
-      # server wildcard
-      {{_, _}, {"*", _}} -> {-1, client}
-
-      # full match
-      {{p, s}, {p, s}} -> {-2, client}
-
-      # client full match on solitary primary
-      {{p, nil}, {p, _}} -> {-2, server}
-
-      _ -> {0, nil}
+      {"*",    "*"} -> {0, nil}
+      {client, "*"} -> {-1, client}
+      {same,  same} -> {-2, client}
+      _ ->
+        if String.starts_with?(server, client <> "-") do
+          {-2, server}
+        else
+          {0, nil}
+        end
     end
   end
   defp do_score(_, accept, part) do
@@ -175,7 +170,7 @@ defmodule Decanter.ConnectionNegotiator do
   end
   defp parse(:language, part) do
     case Decanter.ConnectionNegotiator.Utils.language(part) do
-      {:ok, primary, secondary, args} -> {-parse_q(args), {primary, secondary}}
+      {:ok, lang_string, args} -> {-parse_q(args), lang_string}
       :error -> :error
     end
   end
