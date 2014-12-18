@@ -5,6 +5,7 @@ defmodule Decanter.ConnectionNegotiator.Utils do
 
   @upper ?A..?Z
   @lower ?a..?z
+  @alpha ?0..?9
 
   @doc ~S"""
   Parses language headers (with wildcards).
@@ -87,6 +88,94 @@ defmodule Decanter.ConnectionNegotiator.Utils do
       t  -> {:ok, primary, secondary, Plug.Conn.Utils.params(t)}
     end
   end
+
+  @doc ~S"""
+  Parses charsets.
+
+  Charset names are case insensitive while the sensitiveness
+  of params depends on its key and therefore are not handled
+  by this parser.
+
+  ## Examples
+
+      iex> charset "utf-8"
+      {:ok, "utf-8", %{}}
+
+      iex> charset "ASCII"
+      {:ok, "ascii", %{}}
+
+      iex> charset "*;q=0.8"
+      {:ok, "*", %{"q" => "0.8"}}
+
+      iex> charset "b a"
+      :error
+
+  """
+  def charset(binary) do
+    case strip_spaces(binary) do
+      "*" <> t -> charset_params(t, "*")
+      t -> charset_parse(t, "")
+    end
+  end
+
+  defp charset_parse(<<h, t :: binary>>, acc) when h in @upper,
+    do: charset_parse(t, <<acc :: binary, h + 32>>)
+  defp charset_parse(<<h, t :: binary>>, acc) when h in @lower or h in @alpha or h == ?-,
+    do: charset_parse(t, << acc :: binary, h>>)
+  defp charset_parse(t, acc),
+    do: charset_params(t, acc)
+
+  defp charset_params(t, charset) do
+    case strip_spaces(t) do
+      ""       -> {:ok, charset, %{}}
+      ";" <> t -> {:ok, charset, Plug.Conn.Utils.params(t)}
+      _        -> :error
+    end
+  end
+
+  @valid_encodings ["compress", "deflate", "exi", "gzip", "identity", "pack200-gzip", "*"]
+
+  @doc ~S"""
+  Parses encodings, matching those registered by IANA:
+  http://www.iana.org/assignments/http-parameters/http-parameters.xhtml
+
+  ## Examples
+
+      iex> encoding "identity"
+      {:ok, "identity", %{}}
+
+      iex> encoding "gzip"
+      {:ok, "gzip", %{}}
+
+      iex> encoding "*;q=0.8"
+      {:ok, "*", %{"q" => "0.8"}}
+
+      iex> encoding "myownencoding"
+      :error
+
+  """
+  def encoding(binary) do
+    {encoding, t} = case :binary.split(strip_spaces(binary), ";") do
+      [encoding] -> {encoding, ""}
+      [encoding, t] -> {encoding, ";" <> t}
+    end
+    case encoding do
+      encoding when encoding in @valid_encodings ->
+        encoding_params(t, encoding)
+      _ ->
+        :error
+    end
+  end
+
+  defp encoding_params(t, encoding) do
+    case strip_spaces(t) do
+      ""       -> {:ok, encoding, %{}}
+      ";" <> t -> {:ok, encoding, Plug.Conn.Utils.params(t)}
+      _        -> :error
+    end
+  end
+
+  # Util functions
 
   defp strip_spaces("\r\n" <> t),
     do: strip_spaces(t)

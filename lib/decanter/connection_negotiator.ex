@@ -179,10 +179,16 @@ defmodule Decanter.ConnectionNegotiator do
       :error -> :error
     end
   end
-  defp parse(_, part) do
-    case String.split(String.strip(part), ";") do
-      [part] -> {-1.0, part}
-      [part, args] -> {-parse_q(Plug.Conn.Utils.params(args)), part}
+  defp parse(:charset, part) do
+    case Decanter.ConnectionNegotiator.Utils.charset(part) do
+      {:ok, charset, args} -> {-parse_q(args), charset}
+      :error -> :error
+    end
+  end
+  defp parse(:encoding, part) do
+    case Decanter.ConnectionNegotiator.Utils.encoding(part) do
+      {:ok, encoding, args} -> {-parse_q(args), encoding}
+      :error -> :error
     end
   end
 

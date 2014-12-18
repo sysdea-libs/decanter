@@ -36,10 +36,10 @@ defmodule ConnectionNegotiatorTest do
         {"iso-8859-15;q=0.6, *;q=0.8, utf-16;q=0.9", ["iso-8859-15", "utf-16"], "utf-16"},
 
         # ASCII should be returned because it matches *, which gives it a 0.8 score, higher than iso-8859-15
-        {"iso-8859-15;q=0.6, *;q=0.8, utf-16;q=0.9", ["iso-8859-15", "ASCII"], "ASCII"},
+        {"iso-8859-15;q=0.6, *;q=0.8, utf-16;q=0.9", ["iso-8859-15", "ASCII"], "ascii"},
 
         # iso-8859-1 is always available unless score set to 0
-        {"ascii;q=0.5", ["ascii", "ISO-8859-1"], "ISO-8859-1"},
+        {"ascii;q=0.5", ["ascii", "ISO-8859-1"], "iso-8859-1"},
 
         # bad q values default to 1.0
         {"ascii;q=f", ["ascii", "ISO-8859-1"], "ascii"},
@@ -48,7 +48,7 @@ defmodule ConnectionNegotiatorTest do
         {"iso-8859-15;q=0.6, utf-16;q=0.9", ["ASCII"], nil},
 
         # test some exotic formatting variants, not complete, though.
-        {"iso-8859-15,\n\rASCII", ["ASCII"], "ASCII"},
+        {"iso-8859-15,\r\nASCII", ["ASCII"], "ascii"},
 
         # charset must be compared case insensitively
         {"ASCII", ["ascii"], "ascii"} ])
