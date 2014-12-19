@@ -19,11 +19,9 @@ defmodule UserResource do
   @my_values %{"chris": "Chris Spencer",
                "ben": "Ben Smith"}
 
-  # Static properties
+  # Resource properties
   # Could defer to Phoenix format/accepts handling
-  @available_media_types ["text/html", "application/json"]
-
-  # Dynamic properties
+  def available_media_types(_conn), do: ["text/html", "application/json"]
   def etag(_conn), do: 1635
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
@@ -183,7 +181,7 @@ defmodule MyUserDecanter do
   plug :serve
 
   # Mark our media types
-  @available_media_types ["text/html", "application/json"]
+  def available_media_types(_), do: ["text/html", "application/json"]
 
   # We need to tell the graph builder that we are delegating to
   # :handle_forbidden dynamically, so it can ensure it's available.

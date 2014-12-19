@@ -7,7 +7,7 @@ defmodule PostGetTest.R do
     1635
   end
 
-  @available_media_types ["text/html", "application/json"]
+  def available_media_types(_), do: ["text/html", "application/json"]
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}=conn) do
     send_resp(conn, "HELLO")

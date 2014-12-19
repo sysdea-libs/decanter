@@ -139,26 +139,36 @@ defmodule Decanter do
       decision :exists?, :if_match_exists?, :if_match_star_exists_for_missing?
       decision :processable?, :exists?, :handle_unprocessable_entity
       decision :encoding_available?, :processable?, :handle_not_acceptable do
-        encoding = ConNeg.negotiate(:encoding,
-                                    var!(conn).assigns.headers["accept-encoding"],
-                                    @available_encodings)
-        {true, assign(var!(conn), :encoding, encoding)}
+        case ConNeg.negotiate(:encoding,
+                              var!(conn).assigns.headers["accept-encoding"],
+                              available_encodings(var!(conn))) do
+          nil -> false
+          encoding -> {true, assign(var!(conn), :encoding, encoding)}
+        end
       end
       decision :accept_encoding_exists?, :encoding_available?, :processable?
       decision :charset_available?, :accept_encoding_exists?, :handle_not_acceptable do
-        charset = ConNeg.negotiate(:charset, var!(conn).assigns.headers["accept-charset"], @available_charsets)
-        {!is_nil(charset), assign(var!(conn), :charset, charset)}
+        case ConNeg.negotiate(:charset,
+                              var!(conn).assigns.headers["accept-charset"],
+                              available_charsets(var!(conn))) do
+          nil -> false
+          charset -> {true, assign(var!(conn), :charset, charset)}
+        end
       end
       decision :accept_charset_exists?, :charset_available?, :accept_encoding_exists?
       decision :language_available?, :accept_charset_exists?, :handle_not_acceptable do
-        language = ConNeg.negotiate(:language,
-                                    var!(conn).assigns.headers["accept-language"],
-                                    @available_languages)
-        {!is_nil(language), assign(var!(conn), :language, language)}
+        case ConNeg.negotiate(:language,
+                              var!(conn).assigns.headers["accept-language"],
+                              available_languages(var!(conn))) do
+          nil -> false
+          language -> {true, assign(var!(conn), :language, language)}
+        end
       end
       decision :accept_language_exists?, :language_available?, :accept_charset_exists?
       decision :media_type_available?, :accept_language_exists?, :handle_not_acceptable do
-        case ConNeg.negotiate(:media_type, var!(conn).assigns.headers["accept"], @available_media_types) do
+        case ConNeg.negotiate(:media_type,
+                              var!(conn).assigns.headers["accept"],
+                              available_media_types(var!(conn))) do
           nil -> false
           media_type -> {true, assign(var!(conn), :media_type, media_type)}
         end
@@ -167,7 +177,7 @@ defmodule Decanter do
         if has_header(var!(conn), "accept") do
           true
         else
-          case ConNeg.negotiate(:media_type, "*/*", @available_media_types) do
+          case ConNeg.negotiate(:media_type, "*/*", available_media_types(var!(conn))) do
             nil -> :handle_not_acceptable # bail out
             media_type -> {false, assign(var!(conn), :media_type, media_type)}
           end
@@ -237,15 +247,24 @@ defmodule Decanter do
 
       @entry_point :service_available?
 
-      # static properties
+      # properties
 
       @patch_content_types nil
-      @available_media_types ["text/html"]
-      @available_charsets ["utf-8"]
-      @available_encodings ["identity"]
-      @available_languages ["*"]
       # @allowed_methods ["POST", "GET"]
       @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
+
+      def available_media_types(_), do: ["text/html"]
+      def available_charsets(_), do: ["utf-8"]
+      def available_encodings(_), do: ["identity"]
+      def available_languages(_), do: ["*"]
+
+      # def etag(_), do: nil
+      # def last_modified(_), do: nil
+
+      defoverridable [available_media_types: 1,
+                      available_encodings: 1,
+                      available_charsets: 1,
+                      available_languages: 1]
     end
   end
 
