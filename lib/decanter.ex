@@ -327,14 +327,20 @@ defmodule Decanter do
 
       # Generate entry point
       def serve(conn, opts) do
-        # root specifies the actual root handler once ellision has taken place
+        conn = register_before_send conn, &postprocess(&1)
+
         do_decide(@entry_point, conn
                                 |> assign(:headers, Enum.into(conn.req_headers, %{}))
                                 |> assign(:opts, opts))
+        |> send_resp
+      end
+
+      defp postprocess(conn) do
+        conn
         |> annotate_etag
         |> annotate_last_modified
         |> annotate_allow
-        |> postprocess_serve
+        |> do_postprocess
       end
 
       defp annotate_allow(%{method: method, status: status}=conn)
@@ -347,32 +353,32 @@ defmodule Decanter do
       end
       defp annotate_allow(conn), do: conn
 
-      defp postprocess_serve(conn) do
-        postprocess_serve(conn.assigns, conn, [])
+      defp do_postprocess(conn) do
+        do_postprocess(conn.assigns, conn, [])
       end
 
-      defp postprocess_serve(%{media_type: media_type, charset: charset}=assigns, conn, vary) do
-        postprocess_serve(Map.delete(assigns, :media_type) |> Map.delete(:charset),
+      defp do_postprocess(%{media_type: media_type, charset: charset}=assigns, conn, vary) do
+        do_postprocess(Map.delete(assigns, :media_type) |> Map.delete(:charset),
                    put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
                    ["Accept-Charset","Accept"|vary])
       end
-      defp postprocess_serve(%{media_type: media_type}=assigns, conn, vary) do
-        postprocess_serve(Map.delete(assigns, :media_type),
+      defp do_postprocess(%{media_type: media_type}=assigns, conn, vary) do
+        do_postprocess(Map.delete(assigns, :media_type),
                    put_resp_header(conn, "Content-Type", media_type),
                    ["Accept"|vary])
       end
-      defp postprocess_serve(%{language: language}=assigns, conn, vary) do
-        postprocess_serve(Map.delete(assigns, :language),
+      defp do_postprocess(%{language: language}=assigns, conn, vary) do
+        do_postprocess(Map.delete(assigns, :language),
                    put_resp_header(conn, "Content-Language", language),
                    ["Content-Language"|vary])
       end
-      defp postprocess_serve(%{encoding: encoding}=assigns, conn, vary) do
-        postprocess_serve(Map.delete(assigns, :encoding),
+      defp do_postprocess(%{encoding: encoding}=assigns, conn, vary) do
+        do_postprocess(Map.delete(assigns, :encoding),
                    put_resp_header(conn, "Content-Encoding", encoding),
                    ["Content-Encoding"|vary])
       end
 
-      defp postprocess_serve(_assigns, conn, vary) do
+      defp do_postprocess(_assigns, conn, vary) do
         case vary do
           [] -> conn
           vary -> put_resp_header(conn, "Vary", Enum.join(vary, ","))
