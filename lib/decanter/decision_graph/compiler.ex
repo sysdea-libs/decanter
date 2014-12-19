@@ -13,7 +13,17 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
 
   defp build_trees(maps, options) do
-    {_entry_name, trees} = do_build_trees(options[:entry_point], maps, %{}, options)
+    {_, trees} = do_build_trees(options[:entry_point], maps, %{}, options)
+
+    trees = Enum.reduce(maps[:dynamic], trees, fn (key, trees) ->
+      case trees[key] do
+        nil ->
+          {_, trees} = do_build_trees(key, maps, trees, options)
+          trees
+        _ -> trees
+      end
+    end)
+
     trees
   end
 
@@ -136,7 +146,11 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
   defp compile_node({:action, name, next}, options) do
     quote do
-      do_decide(unquote(next), unquote(name)(unquote(options.ctx_name)))
+      case unquote(name)(unquote(options.ctx_name)) do
+        {:return, ctx} -> ctx
+        {handler, ctx} -> do_decide(handler, ctx)
+        ctx -> do_decide(unquote(next), ctx)
+      end
     end
   end
 end

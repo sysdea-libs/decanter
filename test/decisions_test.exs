@@ -62,7 +62,12 @@ defmodule DecisionsTest.Dynamic do
     :allowed?
   end
 
+  def post(conn) do
+    {:handle_forbidden, conn}
+  end
+
   dynamic :allowed?
+  dynamic :handle_forbidden
 end
 
 defmodule DecisionsTest.EntryPoint do
@@ -214,6 +219,10 @@ defmodule DecisionsTest do
     assert %{status: 200,
              resp_body: "OK"}
            = request(DecisionsTest.Dynamic, :get, %{}, %{})
+
+    assert %{status: 403,
+             resp_body: "Forbidden."}
+           = request(DecisionsTest.Dynamic, :post, %{}, %{})
   end
 
   test "entry_point override" do
