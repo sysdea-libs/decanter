@@ -69,7 +69,7 @@ defmodule Decanter.ConnectionNegotiator do
     if Enum.find(parts, fn {_, s} -> s in ["*", "identity"] end) do
       parts
     else
-      [{-0.01, "identity"}|parts]
+      [{1.0, "identity"}|parts]
     end
   end
   defp set_client_defaults(_, parts) do
