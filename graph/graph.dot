@@ -34,8 +34,8 @@ digraph decisions {
   "conflict?"->"handle_conflict"[label="true"];
   "conflict?"->"put"[label="false"];
   "conflict?"[label="conflict?"];
-  "create_enacted_post?"->"redirect_on_create?"[label="true"];
-  "create_enacted_post?"->"handle_accepted"[label="false"];
+  "create_enacted_post?"->"handle_created"[label="true"];
+  "create_enacted_post?"->"redirect_when_create_postponed?"[label="false"];
   "create_enacted_post?"[label="create_enacted?"];
   "create_enacted_put?"->"handle_created"[label="true"];
   "create_enacted_put?"->"handle_accepted"[label="false"];
@@ -325,9 +325,9 @@ digraph decisions {
   "put_to_existing?"->"conflict?"[label="true"];
   "put_to_existing?"->"multiple_representations?"[label="false"];
   "put_to_existing?"[label="method_put?"];
-  "redirect_on_create?"->"handle_see_other"[label="true"];
-  "redirect_on_create?"->"handle_created"[label="false"];
-  "redirect_on_create?"[label="redirect_on_create?"];
+  "redirect_when_create_postponed?"->"handle_see_other"[label="true"];
+  "redirect_when_create_postponed?"->"handle_accepted"[label="false"];
+  "redirect_when_create_postponed?"[label="redirect_when_create_postponed?"];
   "respond_with_entity?"->"multiple_representations?"[label="true"];
   "respond_with_entity?"->"handle_no_content"[label="false"];
   "respond_with_entity?"[label="respond_with_entity?"];

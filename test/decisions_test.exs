@@ -30,7 +30,7 @@ defmodule DecisionsTest.R do
   decide :moved_temporarily?, do: check_setting(conn, :moved_temporarily?, false)
   decide :multiple_representations?, do: check_setting(conn, :multiple_representations?, false)
   decide :new?, do: check_setting(conn, :new?, true)
-  decide :redirect_on_create?, do: check_setting(conn, :redirect_on_create?, false)
+  decide :redirect_when_create_postponed?, do: check_setting(conn, :redirect_when_create_postponed?, false)
   decide :processable?, do: check_setting(conn, :processable?, true)
   decide :put_to_different_url?, do: check_setting(conn, :put_to_different_url?, false)
   decide :respond_with_entity?, do: check_setting(conn, :respond_with_entity?, false)
@@ -164,12 +164,15 @@ defmodule DecisionsTest do
                                                    respond_with_entity?: true})
 
     assert %{status: 303,
-             resp_body: ""}
-           = request(DecisionsTest.R, :post, %{}, %{redirect_on_create?: true})
+             resp_body: "",
+             resp_headers: %{"Location" => "/my/location"}}
+           = request(DecisionsTest.R, :post, %{}, %{create_enacted?: false,
+                                                    redirect_when_create_postponed?: true,
+                                                    location: "/my/location"})
 
     assert %{status: 201,
              resp_body: ""}
-           = request(DecisionsTest.R, :put, %{}, %{redirect_on_create?: true})
+           = request(DecisionsTest.R, :put, %{}, %{redirect_when_create_postponed?: true})
 
     assert %{status: 422,
              resp_body: "Unprocessable entity."}

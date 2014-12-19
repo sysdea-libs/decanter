@@ -62,10 +62,10 @@ defmodule Decanter do
 
       decision :multiple_representations?, :handle_multiple_representations, :handle_ok
       decision :respond_with_entity?, :multiple_representations?, :handle_no_content
-      decision :redirect_on_create?, :handle_see_other, :handle_created
+      decision :redirect_when_create_postponed?, :handle_see_other, :handle_accepted
       branch :create_enacted_put?, :create_enacted?, :handle_created, :handle_accepted
       branch :new_put?, :new?, :create_enacted_put?, :respond_with_entity?
-      branch :create_enacted_post?, :create_enacted?, :redirect_on_create?, :handle_accepted
+      branch :create_enacted_post?, :create_enacted?, :handle_created, :redirect_when_create_postponed?
       branch :new_post?, :new?, :create_enacted_post?, :respond_with_entity?
       decision :can_post_to_missing?, :post, :handle_not_found
       branch :post_to_missing?, :method_post?, :can_post_to_missing?, :handle_not_found
@@ -212,7 +212,7 @@ defmodule Decanter do
       decide :moved_temporarily?, do: false
       decide :multiple_representations?, do: false
       decide :new?, do: true
-      decide :redirect_on_create?, do: false
+      decide :redirect_when_create_postponed?, do: false
       decide :processable?, do: true
       decide :put_to_different_url?, do: false
       decide :respond_with_entity?, do: false
@@ -377,23 +377,28 @@ defmodule Decanter do
 
       defp do_postprocess(%{media_type: media_type, charset: charset}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :media_type) |> Map.delete(:charset),
-                   put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
-                   ["Accept-Charset","Accept"|vary])
+                       put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
+                       ["Accept-Charset","Accept"|vary])
       end
       defp do_postprocess(%{media_type: media_type}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :media_type),
-                   put_resp_header(conn, "Content-Type", media_type),
-                   ["Accept"|vary])
+                       put_resp_header(conn, "Content-Type", media_type),
+                       ["Accept"|vary])
       end
       defp do_postprocess(%{language: language}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :language),
-                   put_resp_header(conn, "Content-Language", language),
-                   ["Content-Language"|vary])
+                       put_resp_header(conn, "Content-Language", language),
+                       ["Content-Language"|vary])
       end
       defp do_postprocess(%{encoding: encoding}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :encoding),
-                   put_resp_header(conn, "Content-Encoding", encoding),
-                   ["Content-Encoding"|vary])
+                       put_resp_header(conn, "Content-Encoding", encoding),
+                       ["Content-Encoding"|vary])
+      end
+      defp do_postprocess(%{location: location}=assigns, conn, vary) do
+        do_postprocess(Map.delete(assigns, :location),
+                       put_resp_header(conn, "Location", location),
+                       vary)
       end
 
       defp do_postprocess(_assigns, conn, vary) do
