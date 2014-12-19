@@ -129,7 +129,7 @@ defmodule Decanter.DecisionGraph.Compiler do
   end
   defp compile_node({:handler, status, :string, content}, options) do
     quote do
-      Plug.Conn.resp(unquote(options.ctx_name), unquote(status), unquote(content))
+      Plug.Conn.send_resp(unquote(options.ctx_name), unquote(status), unquote(content))
     end
   end
   defp compile_node({:action, name, next}, options) do

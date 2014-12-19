@@ -10,11 +10,11 @@ defmodule PostGetTest.R do
   @available_media_types ["text/html", "application/json"]
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}=conn) do
-    put_resp(conn, "HELLO")
+    send_resp(conn, "HELLO")
   end
 
   def handle_ok(%Plug.Conn{assigns: %{media_type: "application/json"}}=conn) do
-    put_resp(conn, ~s({"message": "HELLO"}))
+    send_resp(conn, ~s({"message": "HELLO"}))
   end
 
   def last_modified(_conn) do

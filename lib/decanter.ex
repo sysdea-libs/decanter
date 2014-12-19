@@ -262,8 +262,8 @@ defmodule Decanter do
     Map.has_key?(conn.assigns.headers, header)
   end
 
-  def put_resp(conn, resp) do
-    Plug.Conn.resp(conn, conn.status, resp)
+  def send_resp(conn, resp) do
+    Plug.Conn.send_resp(conn, conn.status, resp)
   end
 
   defmacro __before_compile__(env) do
@@ -332,7 +332,6 @@ defmodule Decanter do
         do_decide(@entry_point, conn
                                 |> assign(:headers, Enum.into(conn.req_headers, %{}))
                                 |> assign(:opts, opts))
-        |> send_resp
       end
 
       defp postprocess(conn) do
