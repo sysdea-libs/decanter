@@ -13,12 +13,8 @@ defmodule Decanter.DecisionGraph do
 
       defp handle_decision(ctx, result) do
         case result do
-          true  -> {true, ctx}
-          false -> {false, ctx}
-          {true, ctx}  -> {true, ctx}
-          {false, ctx} -> {false, ctx}
-          x when is_atom(x) -> {x, ctx}
-          {x, ctx} when is_atom(x) -> {x, ctx}
+          {x, ctx} -> {x, ctx}
+          x -> {x, ctx}
         end
       end
     end

@@ -99,6 +99,7 @@ defmodule Decanter.DecisionGraph.Compiler do
   defp compile_node({:block, test, consequent}, options) do
     quote location: :keep do
       case handle_decision(unquote(options.ctx_name), unquote(compile_node(test, options))) do
+        {:return, context} -> context
         {x, context} when is_atom(x) -> do_decide(x, context)
         {_, unquote(options.ctx_name)} -> unquote(compile_node(consequent, options))
       end
@@ -116,6 +117,7 @@ defmodule Decanter.DecisionGraph.Compiler do
   defp compile_node({:case_dec, test, consequent, alternate}, options) do
     quote location: :keep do
       case handle_decision(unquote(options.ctx_name), unquote(compile_node(test, options))) do
+        {:return, context} -> context
         {true, unquote(options.ctx_name)} -> unquote(compile_node(consequent, options))
         {false, unquote(options.ctx_name)} -> unquote(compile_node(alternate, options))
         {handler, context} -> do_decide(handler, context)

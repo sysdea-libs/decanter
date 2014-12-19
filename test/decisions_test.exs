@@ -73,6 +73,16 @@ defmodule DecisionsTest.EntryPoint do
   @entry_point :handle_forbidden
 end
 
+defmodule DecisionsTest.Return do
+  use Decanter
+
+  plug :serve
+
+  decide :service_available? do
+    {:return, send_resp(conn, 999, "CANARY")}
+  end
+end
+
 defmodule DecisionsTest do
   use DecanterTest
 
@@ -207,5 +217,11 @@ defmodule DecisionsTest do
     assert %{status: 403,
              resp_body: "Forbidden."}
            = request(DecisionsTest.EntryPoint, :get, %{}, %{})
+  end
+
+  test ":return early exit" do
+    assert %{status: 999,
+             resp_body: "CANARY"}
+           = request(DecisionsTest.Return, :get, %{}, %{})
   end
 end
