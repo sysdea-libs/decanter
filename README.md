@@ -64,23 +64,23 @@ end
 
 # Actions, Handlers, Decisions and Properties
 
-There's a [visualisation of the decision graph](https://cdn.rawgit.com/sysdea-libs/decanter/4b75579d2bd6e19de514e46038af0a1570f320b5/graph/graph.svg) available in SVG form.
+There's a [visualisation of the decision graph](https://cdn.rawgit.com/sysdea-libs/decanter/925b29a9e8394d3fe0b15ea7c4b160017f462880/graph/graph.svg) available in SVG form.
 
 ```elixir
-# static properties, and their defaults if present
+# Static properties
 
 @patch_content_types nil
-@available_media_types ["text/html"]
-@available_charsets ["utf-8"]
-@available_encodings ["identity"]
-@available_languages ["*"]
 @allowed_methods # autoset to ["OPTIONS", "GET"] + whichever actions are implemented
 @known_methods ["GET", "HEAD", "OPTIONS", "PUT", "POST", "DELETE", "TRACE", "PATCH"]
 
-# dynamic properties
+# Dynamic properties, and their defaults when applicable
 
-etag(conn) # will be wrapped for header, eg "absd" -> {"ETag", "\"absd\""}
-last_modified(conn) # should be an erlang style {date(),time()} or nil
+available_media_types(conn) # ["text/html"]
+available_charsets(conn) # ["utf-8"]
+available_encodings(conn) # ["identity"]
+available_languages(conn) # ["*"]
+etag(conn) # nil
+last_modified(conn) # nil, should be an erlang style {date(),time()} or nil
 
 # actions with their following decision point
 
@@ -141,7 +141,7 @@ handle_service_not_available(conn) # 503, "Service not available."
 :moved_temporarily?, do: false
 :multiple_representations?, do: false
 :new?, do: true
-:redirect_on_create?, do: false
+:redirect_when_create_postponed?, do: false
 :processable?, do: true
 :put_to_different_url?, do: false
 :respond_with_entity?, do: false
