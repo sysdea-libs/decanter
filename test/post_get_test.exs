@@ -52,6 +52,16 @@ defmodule PostGetTest do
              resp_body: "HELLO",
              resp_headers: %{"Vary" => "Accept"}}
            = request(PostGetTest.R, :get, %{})
+
+    assert %{status: 200,
+             resp_body: "HELLO",
+             resp_headers: %{"Vary" => "Accept-Encoding,Accept"}}
+           = request(PostGetTest.R, :get, %{"accept-encoding" => "identity"})
+
+    assert %{status: 200,
+             resp_body: "HELLO",
+             resp_headers: %{"Vary" => "Accept-Language,Accept"}}
+           = request(PostGetTest.R, :get, %{"accept-language" => "en"})
   end
 
   test "accept/charset" do

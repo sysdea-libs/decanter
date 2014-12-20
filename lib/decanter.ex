@@ -388,12 +388,17 @@ defmodule Decanter do
       defp do_postprocess(%{language: language}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :language),
                        put_resp_header(conn, "Content-Language", language),
-                       ["Content-Language"|vary])
+                       ["Accept-Language"|vary])
       end
       defp do_postprocess(%{encoding: encoding}=assigns, conn, vary) do
-        do_postprocess(Map.delete(assigns, :encoding),
-                       put_resp_header(conn, "Content-Encoding", encoding),
-                       ["Content-Encoding"|vary])
+        case encoding do
+          "identity" -> do_postprocess(Map.delete(assigns, :encoding),
+                                       conn,
+                                       ["Accept-Encoding"|vary])
+          encoding -> do_postprocess(Map.delete(assigns, :encoding),
+                                     put_resp_header(conn, "Content-Encoding", encoding),
+                                     ["Accept-Encoding"|vary])
+        end
       end
       defp do_postprocess(%{location: location}=assigns, conn, vary) do
         do_postprocess(Map.delete(assigns, :location),
