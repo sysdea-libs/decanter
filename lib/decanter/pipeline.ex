@@ -23,11 +23,13 @@ defmodule Decanter.Pipeline.Builder do
                   _ -> handle_method_not_allowed(var!(conn))
                 end]
 
-        quote do
+        d = quote do
           case var!(conn).method do
             unquote(handlers |> List.flatten)
           end
         end
+
+        build_cache_check(pipeline.properties, d)
     end
 
     filter_chain = Enum.reduce Enum.reverse(pipeline.filters), dispatcher, &build_filter(&1, &2)
@@ -94,6 +96,28 @@ defmodule Decanter.Pipeline.Builder do
     Enum.reduce opts, acc, &build_negotiate(&1, &2)
   end
 
+  defp build_cache_check(props, acc) do
+    last_modified = case props[:last_modified] do
+      nil -> nil
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: last_modified(var!(conn))
+    end
+
+    etag = case props[:etag] do
+      nil -> nil
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: etag(var!(conn))
+    end
+
+    quote do
+      case cache_check(var!(conn).method, var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
+        :ok -> unquote(acc)
+        :precondition -> handle_precondition_failed(var!(conn))
+        :not_modified -> handle_not_modified(var!(conn))
+      end
+    end
+  end
+
   defp build_negotiate({:media_type, available}, acc) do
     quote do
       case ConNeg.negotiate(:media_type,
@@ -131,6 +155,8 @@ defmodule Decanter.Pipeline do
       def handle_method_not_allowed(conn) do end
       def handle_forbidden(conn) do end
       def handle_not_found(conn) do end
+      def handle_precondition_failed(conn) do end
+      def handle_not_modified(conn) do end
     end
   end
 
@@ -184,6 +210,59 @@ defmodule Decanter.Pipeline do
   end
   defmacro method(name, opts \\ []) do
     quote do: decanter_property(:method, unquote(name), unquote(opts))
+  end
+
+  def cache_check(method, headers, last_modified, etag) do
+    status = case headers["if-match"] do
+      nil -> :ok
+      "*" -> :ok
+      ^etag -> :ok
+      _ -> :precondition
+    end
+
+    status = case status do
+      :ok ->
+        case headers["if-none-match"] do
+          nil -> :ok
+          i_n_m when i_n_m == "*" or i_n_m == etag ->
+            if method in ["GET", "HEAD"] do
+              :not_modified
+            else
+              :precondition
+            end
+          _ ->
+            :ok
+        end
+      x -> x
+    end
+
+    status = case status do
+      :ok ->
+        case headers["if-unmodified-since"] do
+          nil -> :ok
+          ds ->
+            case :httpd_util.convert_request_date(ds |> to_char_list) do
+              :bad_date -> :ok
+              ^last_modified -> :ok
+              _ -> :precondition
+            end
+        end
+      x -> x
+    end
+
+    case status do
+      :ok ->
+        case headers["if-modified-since"] do
+          nil -> :ok
+          ds ->
+            case :httpd_util.convert_request_date(ds |> to_char_list) do
+              :bad_date -> :ok
+              ^last_modified -> :not_modified
+              _ -> :ok
+            end
+        end
+      x -> x
+    end
   end
 
   def send_resp(conn, resp) do

@@ -51,7 +51,7 @@ defmodule Decanter.PipelineTest do
 
   # Properties
 
-  def last_modified(%{assigns: %{model: %{last_modified: t}}}=conn) do
+  def last_modified(%{assigns: %{model: %{last_modified: t}}}) do
     {{t.year, t.month, t.day}, {t.hour, t.min, t.sec}}
   end
 
@@ -65,10 +65,10 @@ defmodule Decanter.PipelineTest do
   end
 
   def as_html(conn) do
-    user_data = case get_session(conn, :user) do
-                  nil -> nil
-                  user -> Sysdea.Models.User.json(user)
-                end
+    # user_data = case get_session(conn, :user) do
+    #               nil -> nil
+    #               user -> Sysdea.Models.User.json(user)
+    #             end
     # render conn, "index.html", user_data: user_data
     send_resp conn, "MY HTML"
   end
