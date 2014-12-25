@@ -9,15 +9,13 @@ defmodule Decanter.Pipeline.Builder do
         end
       %{methods: methods} when map_size(methods) > 0 ->
         handlers = for {v, opts} <- methods do
-          case {v, opts} do
-            {m, fn: f} ->
-              quote do
-                unquote(verb m) -> unquote(f)(var!(conn))
-              end
-            {m, _} ->
-              quote do
-                unquote(verb m) -> unquote(m)(var!(conn))
-              end
+          f = case {v, opts} do
+            {m, fn: f} -> f
+            {m, _} -> m
+          end
+
+          quote do
+            unquote(verb v) -> unquote(f)(var!(conn))
           end
         end ++ [quote do
                   _ -> handle_method_not_allowed(var!(conn))
@@ -85,7 +83,7 @@ defmodule Decanter.Pipeline.Builder do
     f = opts[:fn] || name
     {branch, handler} = @filters[name]
     quote do
-      case unquote(f)(var!(conn)) do
+      case filter_wrap(var!(conn), unquote(f)(var!(conn))) do
         {unquote(branch), var!(conn)} -> unquote(acc)
         {_, conn} -> unquote(handler)(conn)
       end
@@ -145,18 +143,60 @@ defmodule Decanter.Pipeline.Builder do
 end
 
 defmodule Decanter.Pipeline do
+
+  @handlers [{:handle_ok, 200, "OK"},
+             {:handle_options, 200, ""},
+             {:handle_created, 201, ""},
+             {:handle_accepted, 202, "Accepted."},
+             {:handle_no_content, 204, ""},
+
+             {:handle_multiple_representations, 300, ""},
+             {:handle_moved_permanently, 301, ""},
+             {:handle_see_other, 303, ""},
+             {:handle_not_modified, 304, ""},
+             {:handle_moved_temporarily, 307, ""},
+
+             {:handle_malformed, 400, "Bad request."},
+             {:handle_unauthorized, 401, "Not authorized."},
+             {:handle_forbidden, 403, "Forbidden."},
+             {:handle_not_found, 404, "Resource not found."},
+             {:handle_method_not_allowed, 405, "Method not allowed."},
+             {:handle_not_acceptable, 406, "No acceptable resource available."},
+             {:handle_conflict, 409, "Conflict."},
+             {:handle_gone, 410, "Resource is gone."},
+             {:handle_precondition_failed, 412, "Precondition failed."},
+             {:handle_request_entity_too_large, 413, "Request entity too large."},
+             {:handle_uri_too_long, 414, "Request URI too long."},
+             {:handle_unsupported_media_type, 415, "Unsupported media type."},
+             {:handle_unprocessable_entity, 422, "Unprocessable entity."},
+
+             {:handle_exception, 500, "Internal server error."},
+             {:handle_not_implemented, 501, "Not implemented."},
+             {:handle_unknown_method, 501, "Unknown method."},
+             {:handle_service_not_available, 503, "Service not available."}]
+
   defmacro __using__(_) do
-    quote do
+
+    handlers = Macro.escape @handlers
+
+    quote bind_quoted: binding do
       @before_compile Decanter.Pipeline
       import Decanter.Pipeline
       import Plug.Conn
 
-      def handle_not_acceptable(conn) do end
-      def handle_method_not_allowed(conn) do end
-      def handle_forbidden(conn) do end
-      def handle_not_found(conn) do end
-      def handle_precondition_failed(conn) do end
-      def handle_not_modified(conn) do end
+      for {name, status, body} <- handlers do
+        def unquote(name)(conn) do
+          if conn.resp_body do
+            conn
+            |> put_status(unquote(status))
+            |> send_resp
+          else
+            send_resp(conn, unquote(status), unquote(body))
+          end
+        end
+
+        defoverridable [{name, 1}]
+      end
     end
   end
 
@@ -265,7 +305,14 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  def send_resp(conn, resp) do
-    Plug.Conn.send_resp(conn, conn.status, resp)
+  def filter_wrap(ctx, result) do
+    case result do
+      {x, ctx} -> {x, ctx}
+      x -> {x, ctx}
+    end
+  end
+
+  def put_resp(conn, resp) do
+    Plug.Conn.resp(conn, conn.status, resp)
   end
 end

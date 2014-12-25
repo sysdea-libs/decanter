@@ -61,7 +61,7 @@ defmodule Decanter.PipelineTest do
     body = conn.assigns.model
            |> Sysdea.Models.Model.json
            |> Poison.encode!
-    send_resp(conn, body)
+    put_resp(conn, body)
   end
 
   def as_html(conn) do
@@ -70,7 +70,7 @@ defmodule Decanter.PipelineTest do
     #               user -> Sysdea.Models.User.json(user)
     #             end
     # render conn, "index.html", user_data: user_data
-    send_resp conn, "MY HTML"
+    put_resp conn, "MY HTML"
   end
 
   # Modification methods
