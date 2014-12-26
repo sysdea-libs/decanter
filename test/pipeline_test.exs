@@ -18,7 +18,9 @@ defmodule Decanter.PipelineTest do
   end
 
   decanter "text/html" do
-    method :get, fn: :as_html
+    property :entity, fn: :as_html
+
+    method :get
   end
 
   decanter "application/json" do
@@ -26,8 +28,9 @@ defmodule Decanter.PipelineTest do
     filter :allowed?, fn: :user_has_access?
 
     property :last_modified
+    property :entity, fn: :as_json
 
-    method :get, fn: :as_json
+    method :get
     method :patch
     method :delete
   end
@@ -58,10 +61,9 @@ defmodule Decanter.PipelineTest do
   # Representation methods
 
   def as_json(conn) do
-    body = conn.assigns.model
-           |> Sysdea.Models.Model.json
-           |> Poison.encode!
-    put_resp(conn, body)
+    conn.assigns.model
+    |> Sysdea.Models.Model.json
+    |> Poison.encode!
   end
 
   def as_html(conn) do

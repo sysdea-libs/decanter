@@ -9,14 +9,7 @@ defmodule Decanter.Pipeline.Builder do
         end
       %{methods: methods} when map_size(methods) > 0 ->
         handlers = for {v, opts} <- methods do
-          f = case {v, opts} do
-            {m, fn: f} -> f
-            {m, _} -> m
-          end
-
-          quote do
-            unquote(verb v) -> unquote(f)(var!(conn))
-          end
+          build_verb(v, pipeline.properties, opts)
         end ++ [quote do
                   _ -> handle_method_not_allowed(var!(conn))
                 end]
@@ -36,11 +29,75 @@ defmodule Decanter.Pipeline.Builder do
     filter_chain
   end
 
-  defp verb(:delete), do: "DELETE"
-  defp verb(:patch), do: "PATCH"
-  defp verb(:post), do: "POST"
-  defp verb(:put), do: "PUT"
-  defp verb(:get), do: "GET"
+  defp build_verb(:get, props, _opts) do
+    entity = case props[:entity] do
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: entity(var!(conn))
+    end
+
+    quote do
+      "GET" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+    end
+  end
+
+  defp build_verb(:delete, props, opts) do
+    f = case opts do
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: delete(var!(conn))
+    end
+
+    quote do
+      "DELETE" -> handle_no_content(unquote(f))
+    end
+  end
+
+  defp build_verb(:patch, props, opts) do
+    patch_fn = case opts do
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: patch(var!(conn))
+    end
+
+    entity = case props[:entity] do
+      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
+      [] -> quote do: entity(unquote(patch_fn))
+    end
+
+    quote do
+      "PATCH" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+    end
+  end
+
+  defp build_verb(:post, props, opts) do
+    patch_fn = case opts do
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: post(var!(conn))
+    end
+
+    entity = case props[:entity] do
+      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
+      [] -> quote do: entity(unquote(patch_fn))
+    end
+
+    quote do
+      "POST" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+    end
+  end
+
+  defp build_verb(:put, props, opts) do
+    patch_fn = case opts do
+      [fn: f] -> quote do: unquote(f)(var!(conn))
+      [] -> quote do: put(var!(conn))
+    end
+
+    entity = case props[:entity] do
+      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
+      [] -> quote do: entity(unquote(patch_fn))
+    end
+
+    quote do
+      "PUT" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+    end
+  end
 
   @filters %{method_options?: {false, :handle_options},
              valid_entity_length?: {true, :handle_request_entity_too_large},
@@ -57,7 +114,7 @@ defmodule Decanter.Pipeline.Builder do
              multiple_representations?: {false, :handle_multiple_representations}}
 
   defp empty_pipeline do
-    %{methods: %{}, properties: %{}, filters: [], decisions: %{}, decant: nil}
+    %{methods: %{}, properties: %{}, filters: [], decant: nil}
   end
 
   defp build_pipeline({:method, name, opts}, pipeline) do
@@ -65,9 +122,6 @@ defmodule Decanter.Pipeline.Builder do
   end
   defp build_pipeline({:property, name, opts}, pipeline) do
     %{pipeline | properties: Map.put(pipeline.properties, name, opts)}
-  end
-  defp build_pipeline({:decide, name, opts}, pipeline) do
-    %{pipeline | decisions: Map.put(pipeline.decisions, name, opts)}
   end
   defp build_pipeline({:filter, name, opts}, pipeline) do
     %{pipeline | filters: [{:filter, name, opts}|pipeline.filters]}
@@ -242,9 +296,6 @@ defmodule Decanter.Pipeline do
   defmacro filter(name, opts \\ []) do
     quote do: decanter_property(:filter, unquote(name), unquote(opts))
   end
-  defmacro decide(name, opts \\ []) do
-    quote do: decanter_property(:decide, unquote(name), unquote(opts))
-  end
   defmacro property(name, opts \\ []) do
     quote do: decanter_property(:property, unquote(name), unquote(opts))
   end
@@ -309,6 +360,13 @@ defmodule Decanter.Pipeline do
     case result do
       {x, ctx} -> {x, ctx}
       x -> {x, ctx}
+    end
+  end
+
+  def wrap_entity(ctx, entity) do
+    case entity do
+      %Plug.Conn{} -> entity
+      body -> put_resp(ctx, body)
     end
   end
 
