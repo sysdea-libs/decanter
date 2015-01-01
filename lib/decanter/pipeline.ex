@@ -162,7 +162,7 @@ defmodule Decanter.Pipeline.Builder do
     end
 
     quote do
-      case cache_check(var!(conn).method, var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
+      case cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
         :ok -> unquote(acc)
         :precondition -> handle_precondition_failed(var!(conn))
         :not_modified -> handle_not_modified(var!(conn))
@@ -234,7 +234,8 @@ defmodule Decanter.Pipeline do
     handlers = Macro.escape @handlers
 
     quote bind_quoted: binding do
-      @before_compile Decanter.Pipeline
+      # @before_compile Decanter.Pipeline
+
       import Decanter.Pipeline
       import Plug.Conn
 
@@ -254,9 +255,8 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  defmacro __before_compile__(env) do
-
-  end
+  # defmacro __before_compile__(env) do
+  # end
 
   defmacro decanter(match, do: block) do
     block =
@@ -303,58 +303,72 @@ defmodule Decanter.Pipeline do
     quote do: decanter_property(:method, unquote(name), unquote(opts))
   end
 
-  def cache_check(method, headers, last_modified, etag) do
-    status = case headers["if-match"] do
+  # Utility/connection checks
+
+  def cache_check(conn, headers, last_modified, etag) do
+    case cache_check_ifmatch(headers, etag) do
+      :ok ->
+        case cache_check_ifnonematch(conn.method, headers, etag) do
+          :ok ->
+            case cache_check_ifunmodified(headers, last_modified) do
+              :ok ->
+                cache_check_ifmodified(headers, last_modified)
+              status -> status
+            end
+          status -> status
+        end
+      status -> status
+    end
+  end
+
+  def cache_check_ifmatch(headers, etag) do
+    case headers["if-match"] do
       nil -> :ok
       "*" -> :ok
       ^etag -> :ok
       _ -> :precondition
     end
+  end
 
-    status = case status do
-      :ok ->
-        case headers["if-none-match"] do
-          nil -> :ok
-          i_n_m when i_n_m == "*" or i_n_m == etag ->
-            if method in ["GET", "HEAD"] do
-              :not_modified
-            else
-              :precondition
-            end
-          _ ->
-            :ok
+  def cache_check_ifnonematch(method, headers, etag) do
+    case headers["if-none-match"] do
+      nil -> :ok
+      i_n_m when i_n_m == "*" or i_n_m == etag ->
+        if method in ["GET", "HEAD"] do
+          :not_modified
+        else
+          :precondition
         end
-      x -> x
-    end
-
-    status = case status do
-      :ok ->
-        case headers["if-unmodified-since"] do
-          nil -> :ok
-          ds ->
-            case :httpd_util.convert_request_date(ds |> to_char_list) do
-              :bad_date -> :ok
-              ^last_modified -> :ok
-              _ -> :precondition
-            end
-        end
-      x -> x
-    end
-
-    case status do
-      :ok ->
-        case headers["if-modified-since"] do
-          nil -> :ok
-          ds ->
-            case :httpd_util.convert_request_date(ds |> to_char_list) do
-              :bad_date -> :ok
-              ^last_modified -> :not_modified
-              _ -> :ok
-            end
-        end
-      x -> x
+      _ ->
+        :ok
     end
   end
+
+  def cache_check_ifunmodified(headers, last_modified) do
+    case headers["if-unmodified-since"] do
+      nil -> :ok
+      ds ->
+        case :httpd_util.convert_request_date(ds |> to_char_list) do
+          :bad_date -> :ok
+          ^last_modified -> :ok
+          _ -> :precondition
+        end
+    end
+  end
+
+  def cache_check_ifmodified(headers, last_modified) do
+    case headers["if-modified-since"] do
+      nil -> :ok
+      ds ->
+        case :httpd_util.convert_request_date(ds |> to_char_list) do
+          :bad_date -> :ok
+          ^last_modified -> :not_modified
+          _ -> :ok
+        end
+    end
+  end
+
+  # Helper wrappers
 
   def filter_wrap(ctx, result) do
     case result do
