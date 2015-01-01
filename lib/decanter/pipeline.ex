@@ -30,72 +30,77 @@ defmodule Decanter.Pipeline.Builder do
   end
 
   defp build_verb(:get, props, _opts) do
-    entity = case props[:entity] do
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: entity(var!(conn))
-    end
+    entity = build_accessor(:entity, props[:entity])
 
     quote do
-      "GET" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+      "GET" -> handle_ok(Decanter.Pipeline.wrap_entity(var!(conn), unquote(entity)))
     end
   end
-
   defp build_verb(:delete, props, opts) do
-    f = case opts do
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: delete(var!(conn))
-    end
+    delete = build_accessor(:delete, opts)
 
     quote do
-      "DELETE" -> handle_no_content(unquote(f))
+      "DELETE" -> handle_no_content(unquote(delete))
     end
   end
-
   defp build_verb(:patch, props, opts) do
-    patch_fn = case opts do
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: patch(var!(conn))
-    end
-
-    entity = case props[:entity] do
-      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
-      [] -> quote do: entity(unquote(patch_fn))
-    end
+    patch = build_accessor(:patch, opts)
+    entity = build_accessor(:entity, props[:entity])
+    responder = build_responder(opts, entity)
 
     quote do
-      "PATCH" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+      "PATCH" -> unquote(build_action patch, responder)
     end
   end
-
   defp build_verb(:post, props, opts) do
-    patch_fn = case opts do
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: post(var!(conn))
-    end
-
-    entity = case props[:entity] do
-      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
-      [] -> quote do: entity(unquote(patch_fn))
-    end
+    post = build_accessor(:post, opts)
+    entity = build_accessor(:entity, props[:entity], post)
+    responder = build_responder(opts, entity)
 
     quote do
-      "POST" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+      "POST" -> unquote(build_action post, responder)
+    end
+  end
+  defp build_verb(:put, props, opts) do
+    put = build_accessor(:put, opts)
+    entity = build_accessor(:entity, props[:entity], put)
+    responder = build_responder(opts, entity)
+
+    quote do
+      "PUT" -> unquote(build_action put, responder)
     end
   end
 
-  defp build_verb(:put, props, opts) do
-    patch_fn = case opts do
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: put(var!(conn))
+  defp build_accessor(name, opts, acc \\ quote do: var!(conn)) do
+    case opts[:fn] do
+      nil -> quote do: unquote(name)(unquote(acc))
+      f -> quote do: unquote(f)(unquote(acc))
     end
+  end
 
-    entity = case props[:entity] do
-      [fn: f] -> quote do: unquote(f)(unquote(patch_fn))
-      [] -> quote do: entity(unquote(patch_fn))
-    end
-
+  defp build_action(action, responder) do
     quote do
-      "PUT" -> handle_ok(wrap_entity(var!(conn), unquote(entity)))
+      case unquote(action) do
+        %Plug.Conn{halted: true}=conn -> conn
+        var!(conn) -> unquote(responder)
+      end
+    end
+  end
+
+  defp build_responder(opts, entity) do
+    case Keyword.get(opts, :entity_body, true) do
+      true ->
+        quote do: handle_ok(Decanter.Pipeline.wrap_entity(var!(conn), unquote(entity)))
+      false ->
+        quote do: handle_no_content(var!(conn))
+      test ->
+        quote do
+          if unquote(test) do
+            handle_ok(Decanter.Pipeline.wrap_entity(var!(conn), unquote(entity)))
+          else
+            handle_no_content(var!(conn))
+          end
+        end
     end
   end
 
@@ -137,7 +142,7 @@ defmodule Decanter.Pipeline.Builder do
     f = opts[:fn] || name
     {branch, handler} = @filters[name]
     quote do
-      case filter_wrap(var!(conn), unquote(f)(var!(conn))) do
+      case Decanter.Pipeline.filter_wrap(var!(conn), unquote(f)(var!(conn))) do
         {unquote(branch), var!(conn)} -> unquote(acc)
         {_, conn} -> unquote(handler)(conn)
       end
@@ -151,18 +156,16 @@ defmodule Decanter.Pipeline.Builder do
   defp build_cache_check(props, acc) do
     last_modified = case props[:last_modified] do
       nil -> nil
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: last_modified(var!(conn))
+      last_mod -> build_accessor(:last_modified, last_mod)
     end
 
     etag = case props[:etag] do
       nil -> nil
-      [fn: f] -> quote do: unquote(f)(var!(conn))
-      [] -> quote do: etag(var!(conn))
+      etag -> build_accessor(:etag, etag)
     end
 
     quote do
-      case cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
+      case Decanter.Pipeline.cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
         :ok -> unquote(acc)
         :precondition -> handle_precondition_failed(var!(conn))
         :not_modified -> handle_not_modified(var!(conn))
@@ -234,19 +237,14 @@ defmodule Decanter.Pipeline do
     handlers = Macro.escape @handlers
 
     quote bind_quoted: binding do
-      # @before_compile Decanter.Pipeline
-
-      import Decanter.Pipeline
-      import Plug.Conn
-
       for {name, status, body} <- handlers do
         def unquote(name)(conn) do
           if conn.resp_body do
             conn
-            |> put_status(unquote(status))
-            |> send_resp
+            |> Plug.Conn.put_status(unquote(status))
+            |> Plug.Conn.send_resp
           else
-            send_resp(conn, unquote(status), unquote(body))
+            Plug.Conn.send_resp(conn, unquote(status), unquote(body))
           end
         end
 
@@ -254,9 +252,6 @@ defmodule Decanter.Pipeline do
       end
     end
   end
-
-  # defmacro __before_compile__(env) do
-  # end
 
   defmacro decanter(match, do: block) do
     block =
@@ -294,13 +289,13 @@ defmodule Decanter.Pipeline do
   end
 
   defmacro filter(name, opts \\ []) do
-    quote do: decanter_property(:filter, unquote(name), unquote(opts))
+    quote do: Decanter.Pipeline.decanter_property(:filter, unquote(name), unquote(opts))
   end
   defmacro property(name, opts \\ []) do
-    quote do: decanter_property(:property, unquote(name), unquote(opts))
+    quote do: Decanter.Pipeline.decanter_property(:property, unquote(name), unquote(opts))
   end
   defmacro method(name, opts \\ []) do
-    quote do: decanter_property(:method, unquote(name), unquote(opts))
+    quote do: Decanter.Pipeline.decanter_property(:method, unquote(name), unquote(opts))
   end
 
   # Utility/connection checks
@@ -377,14 +372,10 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  def wrap_entity(ctx, entity) do
+  def wrap_entity(conn, entity) do
     case entity do
       %Plug.Conn{} -> entity
-      body -> put_resp(ctx, body)
+      body -> Plug.Conn.resp(conn, conn.status, body)
     end
-  end
-
-  def put_resp(conn, resp) do
-    Plug.Conn.resp(conn, conn.status, resp)
   end
 end

@@ -10,29 +10,31 @@
 
 defmodule Decanter.PipelineTest do
   use Decanter.Pipeline
+  alias Decanter.Pipeline, as: D
+  import Plug.Conn
 
-  decanter :start do
-    negotiate media_type: ["text/html", "application/json"],
+  D.decanter :start do
+    D.negotiate media_type: ["text/html", "application/json"],
                  charset: ["utf-8"]
-    decant conn.assigns.media_type
+    D.decant conn.assigns.media_type
   end
 
-  decanter "text/html" do
-    property :entity, fn: :as_html
+  D.decanter "text/html" do
+    D.property :entity, fn: :as_html
 
-    method :get
+    D.method :get
   end
 
-  decanter "application/json" do
-    filter :exists?
-    filter :allowed?, fn: :user_has_access?
+  D.decanter "application/json" do
+    D.filter :exists?
+    D.filter :allowed?, fn: :user_has_access?
 
-    property :last_modified
-    property :entity, fn: :as_json
+    D.property :last_modified
+    D.property :entity, fn: :as_json
 
-    method :get
-    method :patch
-    method :delete
+    D.method :get
+    D.method :patch
+    D.method :delete
   end
 
   # Access/existence checks
@@ -72,7 +74,7 @@ defmodule Decanter.PipelineTest do
     #               user -> Sysdea.Models.User.json(user)
     #             end
     # render conn, "index.html", user_data: user_data
-    put_resp conn, "MY HTML"
+    resp conn, 200, "MY HTML"
   end
 
   # Modification methods
