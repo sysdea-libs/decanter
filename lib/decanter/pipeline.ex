@@ -166,9 +166,9 @@ defmodule Decanter.Pipeline.Builder do
 
     quote do
       case Decanter.Pipeline.cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
-        :ok -> unquote(acc)
-        :precondition -> handle_precondition_failed(var!(conn))
-        :not_modified -> handle_not_modified(var!(conn))
+        {:ok, var!(conn)} -> unquote(acc)
+        {:precondition, conn} -> handle_precondition_failed(conn)
+        {:not_modified, conn} -> handle_not_modified(conn)
       end
     end
   end
@@ -301,7 +301,11 @@ defmodule Decanter.Pipeline do
   # Utility/connection checks
 
   def cache_check(conn, headers, last_modified, etag) do
-    case cache_check_ifmatch(headers, etag) do
+    conn = conn
+           |> Plug.Conn.assign(conn, :etag, etag)
+           |> Plug.Conn.assign(conn, :last_modified, last_modified)
+
+    status = case cache_check_ifmatch(headers, etag) do
       :ok ->
         case cache_check_ifnonematch(conn.method, headers, etag) do
           :ok ->
@@ -314,6 +318,8 @@ defmodule Decanter.Pipeline do
         end
       status -> status
     end
+
+    {status, conn}
   end
 
   def cache_check_ifmatch(headers, etag) do
