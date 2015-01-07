@@ -10,33 +10,33 @@
 
 defmodule Decanter.PipelineTest do
   use Decanter.Pipeline
-  alias Decanter.Pipeline, as: D
+  import Decanter.Pipeline
   import Plug.Conn
 
   plug :decant
 
-  D.decanter :start do
-    D.negotiate media_type: ["text/html", "application/json"],
+  decanter :start do
+    negotiate media_type: ["text/html", "application/json"],
                  charset: ["utf-8"]
-    D.decant conn.assigns.media_type
+    decant conn.assigns.media_type
   end
 
-  D.decanter "text/html" do
-    D.property :entity, fn: :as_html
+  decanter "text/html" do
+    property :entity, fn: :as_html
 
-    D.method :get
+    method :get
   end
 
-  D.decanter "application/json" do
-    D.filter :exists?
-    D.filter :allowed?, fn: :user_has_access?
+  decanter "application/json" do
+    filter :exists?
+    filter :allowed?, fn: :user_has_access?
 
-    D.property :last_modified
-    D.property :entity, fn: :as_json
+    property :last_modified
+    property :entity, fn: :as_json
 
-    D.method :get
-    D.method :patch
-    D.method :delete
+    method :get
+    method :patch
+    method :delete
   end
 
   # Access/existence checks
