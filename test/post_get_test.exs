@@ -21,6 +21,11 @@ defmodule PostGetTest.R do
     {{2014, 12, 13}, {11, 36, 32}}
   end
 
+  def exists?(_), do: true
+
+  decide :respond_with_entity?, do: true
+  decide :new?, do: false
+
   def post(conn) do
     conn
   end
@@ -33,6 +38,10 @@ defmodule PostGetTest do
     assert %{status: 200,
              resp_body: "HELLO"}
            = request(PostGetTest.R, :get, %{})
+
+    assert %{status: 200,
+             resp_body: "HELLO"}
+           = request(PostGetTest.R, :post, %{})
   end
 
   test "methods (405/options)" do

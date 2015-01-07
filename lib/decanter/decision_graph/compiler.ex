@@ -80,7 +80,7 @@ defmodule Decanter.DecisionGraph.Compiler do
           {name, Map.put(trees, name, {:tree, body})}
         {:action, next} ->
           {next, trees} = do_build_trees(next, maps, trees, options)
-          {name, Map.put(trees, name, {:tree, {:action, name, next}})}
+          {next, Map.put(trees, name, {:tree, {:action, name, next}})}
       end
     end
   end
