@@ -165,7 +165,7 @@ defmodule Decanter.Pipeline.Builder do
     end
 
     quote do
-      case Decanter.Pipeline.cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
+      case Decanter.Pipeline.Utils.cache_check(var!(conn), var!(conn).assigns.headers, unquote(last_modified), unquote(etag)) do
         {:ok, var!(conn)} -> unquote(acc)
         {:precondition, conn} -> handle_precondition_failed(conn)
         {:not_modified, conn} -> handle_not_modified(conn)
@@ -233,10 +233,11 @@ defmodule Decanter.Pipeline do
              {:handle_service_not_available, 503, "Service not available."}]
 
   defmacro __using__(_) do
-
     handlers = Macro.escape @handlers
 
     quote bind_quoted: binding do
+      use Plug.Builder
+
       for {name, status, body} <- handlers do
         def unquote(name)(conn) do
           if conn.resp_body do
@@ -249,6 +250,13 @@ defmodule Decanter.Pipeline do
         end
 
         defoverridable [{name, 1}]
+      end
+
+      def decant(conn, _opts) do
+        conn = register_before_send conn, &Decanter.Pipeline.Utils.postprocess/1
+
+        do_decant(:start, conn
+                          |> assign(:headers, Enum.into(conn.req_headers, %{})))
       end
     end
   end
@@ -298,7 +306,89 @@ defmodule Decanter.Pipeline do
     quote do: Decanter.Pipeline.decanter_property(:method, unquote(name), unquote(opts))
   end
 
-  # Utility/connection checks
+  # Helper wrappers
+
+  def filter_wrap(ctx, result) do
+    case result do
+      {x, ctx} -> {x, ctx}
+      x -> {x, ctx}
+    end
+  end
+
+  def wrap_entity(conn, entity) do
+    case entity do
+      %Plug.Conn{} -> entity
+      body -> Plug.Conn.resp(conn, conn.status, body)
+    end
+  end
+end
+
+defmodule Decanter.Pipeline.Utils do
+  import Plug.Conn
+
+  # Header postprocessing
+
+  def postprocess(conn) do
+    postprocess(conn.assigns, conn, [])
+  end
+
+  defp postprocess(%{media_type: media_type, charset: charset}=assigns, conn, vary) do
+    postprocess(Map.delete(assigns, :media_type) |> Map.delete(:charset),
+                   put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
+                   ["Accept-Charset","Accept"|vary])
+  end
+  defp postprocess(%{media_type: media_type}=assigns, conn, vary) do
+    postprocess(Map.delete(assigns, :media_type),
+                   put_resp_header(conn, "Content-Type", media_type),
+                   ["Accept"|vary])
+  end
+  defp postprocess(%{language: language}=assigns, conn, vary) do
+    postprocess(Map.delete(assigns, :language),
+                   put_resp_header(conn, "Content-Language", language),
+                   ["Accept-Language"|vary])
+  end
+  defp postprocess(%{encoding: encoding}=assigns, conn, vary) do
+    case encoding do
+      "identity" -> postprocess(Map.delete(assigns, :encoding),
+                                   conn,
+                                   ["Accept-Encoding"|vary])
+      encoding -> postprocess(Map.delete(assigns, :encoding),
+                                 put_resp_header(conn, "Content-Encoding", encoding),
+                                 ["Accept-Encoding"|vary])
+    end
+  end
+  defp postprocess(%{location: location}=assigns, conn, vary) do
+    postprocess(Map.delete(assigns, :location),
+                put_resp_header(conn, "Location", location),
+                vary)
+  end
+  defp postprocess(%{etag: etag}=assigns, conn, vary) when not is_nil(etag) do
+    postprocess(Map.delete(assigns, :etag),
+                put_resp_header(conn, "ETag", format_etag(etag)),
+                vary)
+  end
+  defp postprocess(%{last_modified: last_modified}=assigns, conn, vary) when not is_nil(last_modified) do
+    postprocess(Map.delete(assigns, :last_modified),
+                put_resp_header(conn, "Last-Modified",
+                                :httpd_util.rfc1123_date(last_modified) |> to_string),
+                vary)
+  end
+
+  defp postprocess(_assigns, conn, vary) do
+    case vary do
+      [] -> conn
+      vary -> put_resp_header(conn, "Vary", Enum.join(vary, ","))
+    end
+  end
+
+  defp format_etag(etag) do
+    case etag do
+      nil -> nil
+      etag -> "\"#{to_string(etag)}\""
+    end
+  end
+
+  # Cache Checking
 
   def cache_check(conn, headers, last_modified, etag) do
     conn = conn
@@ -322,7 +412,7 @@ defmodule Decanter.Pipeline do
     {status, conn}
   end
 
-  def cache_check_ifmatch(headers, etag) do
+  defp cache_check_ifmatch(headers, etag) do
     case headers["if-match"] do
       nil -> :ok
       "*" -> :ok
@@ -331,7 +421,7 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  def cache_check_ifnonematch(method, headers, etag) do
+  defp cache_check_ifnonematch(method, headers, etag) do
     case headers["if-none-match"] do
       nil -> :ok
       i_n_m when i_n_m == "*" or i_n_m == etag ->
@@ -345,7 +435,7 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  def cache_check_ifunmodified(headers, last_modified) do
+  defp cache_check_ifunmodified(headers, last_modified) do
     case headers["if-unmodified-since"] do
       nil -> :ok
       ds ->
@@ -357,7 +447,7 @@ defmodule Decanter.Pipeline do
     end
   end
 
-  def cache_check_ifmodified(headers, last_modified) do
+  defp cache_check_ifmodified(headers, last_modified) do
     case headers["if-modified-since"] do
       nil -> :ok
       ds ->
@@ -366,22 +456,6 @@ defmodule Decanter.Pipeline do
           ^last_modified -> :not_modified
           _ -> :ok
         end
-    end
-  end
-
-  # Helper wrappers
-
-  def filter_wrap(ctx, result) do
-    case result do
-      {x, ctx} -> {x, ctx}
-      x -> {x, ctx}
-    end
-  end
-
-  def wrap_entity(conn, entity) do
-    case entity do
-      %Plug.Conn{} -> entity
-      body -> Plug.Conn.resp(conn, conn.status, body)
     end
   end
 end

@@ -13,6 +13,8 @@ defmodule Decanter.PipelineTest do
   alias Decanter.Pipeline, as: D
   import Plug.Conn
 
+  plug :decant
+
   D.decanter :start do
     D.negotiate media_type: ["text/html", "application/json"],
                  charset: ["utf-8"]
