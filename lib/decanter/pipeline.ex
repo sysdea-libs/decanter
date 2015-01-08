@@ -8,13 +8,15 @@ defmodule Decanter.Pipeline.Builder do
           do_decant(unquote(decant), var!(conn))
         end
       %{methods: methods} when map_size(methods) > 0 ->
-        verbs = Enum.map(methods, &verb_name(elem(&1, 0)))
+        verbs = Map.put(methods, :options, nil)
+                |> Enum.map(&verb_name(elem(&1, 0)))
+                |> Enum.join(",")
 
         handlers = for {v, opts} <- methods do
           build_verb(v, pipeline.properties, opts)
         end ++ [quote do
-                  _ -> handle_method_not_allowed(
-                        Plug.Conn.put_resp_header(var!(conn), "Allow", unquote(Enum.join(verbs, ","))))
+                  "OPTIONS" -> handle_options(Plug.Conn.put_resp_header(var!(conn), "Allow", unquote(verbs)))
+                  _ -> handle_method_not_allowed(Plug.Conn.put_resp_header(var!(conn), "Allow", unquote(verbs)))
                 end]
 
         d = quote do
@@ -37,6 +39,7 @@ defmodule Decanter.Pipeline.Builder do
   defp verb_name(:patch), do: "PATCH"
   defp verb_name(:put), do: "PUT"
   defp verb_name(:delete), do: "DELETE"
+  defp verb_name(:options), do: "OPTIONS"
 
   defp build_verb(:get, props, _opts) do
     entity = build_accessor(:entity, props[:entity])
