@@ -45,14 +45,21 @@ defmodule Decanter.Pipeline.Builder do
     entity = build_accessor(:entity, props[:entity])
 
     quote do
-      "GET" -> handle_ok(Decanter.Pipeline.wrap_entity(var!(conn), unquote(entity)))
+      "GET" ->
+        var!(conn)
+        |> Decanter.Pipeline.wrap_entity(unquote(entity))
+        |> handle_ok
     end
   end
   defp build_verb(:delete, props, opts) do
     delete = build_accessor(:delete, opts)
 
     quote do
-      "DELETE" -> handle_no_content(unquote(delete))
+      "DELETE" ->
+        case unquote(delete) do
+          %Plug.Conn{halted: true}=conn -> conn
+          conn -> handle_no_content(conn)
+        end
     end
   end
   defp build_verb(:patch, props, opts) do
@@ -100,7 +107,7 @@ defmodule Decanter.Pipeline.Builder do
   end
 
   defp build_responder(opts, entity) do
-    case Keyword.get(opts, :entity_body, true) do
+    case Keyword.get(opts, :send_entity, true) do
       true ->
         quote do: handle_ok(Decanter.Pipeline.wrap_entity(var!(conn), unquote(entity)))
       false ->
