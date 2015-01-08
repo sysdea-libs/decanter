@@ -25,10 +25,24 @@ defmodule DecanterTest do
     end
   end
 
-  defmacro request(module, method, headers, assigns \\ Macro.escape(%{})) do
-    quote do
-      resp = test_conn(unquote(module), unquote(method), unquote(headers), unquote(assigns))
-      %{resp | resp_headers: Enum.into(resp.resp_headers, %{})}
-    end
+  def request(module, method, headers, assigns \\ %{}) do
+    resp = test_conn(module, method, headers, assigns)
+    %{resp | resp_headers: Enum.into(resp.resp_headers, %{})}
+  end
+
+  def testreq(module, method, opts \\ []) do
+    headers = Keyword.get(opts, :headers, %{})
+    assigns = Keyword.get(opts, :assigns, %{})
+    params = Keyword.get(opts, :params, %{})
+    path = Keyword.get(opts, :path, "/")
+
+    c = conn(method, path)
+    c = Enum.reduce(headers, c, fn ({k, v}, conn) ->
+      put_req_header(conn, k, v)
+    end)
+
+    c = %{c | assigns: assigns, params: params}
+
+    apply(module, :call, [c, nil])
   end
 end
