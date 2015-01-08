@@ -26,11 +26,11 @@ defmodule PostGetPipelineTest.R do
     {{2014, 12, 13}, {11, 36, 32}}
   end
 
-  def entity(%{assigns: %{media_type: "text/html"}}=conn) do
-    assign(conn, :entity, "HELLO")
+  def entity(%{assigns: %{media_type: "text/html"}}) do
+    "HELLO"
   end
-  def entity(%{assigns: %{media_type: "application/json"}}=conn) do
-    assign(conn, :entity, ~s({"message": "HELLO"}))
+  def entity(%{assigns: %{media_type: "application/json"}}) do
+    ~s({"message": "HELLO"})
   end
 
   def post(conn) do

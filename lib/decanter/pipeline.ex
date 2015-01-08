@@ -236,7 +236,14 @@ defmodule Decanter.Pipeline do
 
       for {name, status, body} <- handlers do
         def unquote(name)(conn) do
-          Plug.Conn.send_resp(conn, unquote(status), conn.assigns[:entity] || unquote(body))
+          case conn.resp_body do
+            nil ->
+              Plug.Conn.send_resp(conn, unquote(status), unquote(body))
+            _ ->
+              conn
+              |> Plug.Conn.put_status(unquote(status))
+              |> Plug.Conn.send_resp
+          end
         end
 
         defoverridable [{name, 1}]
@@ -308,7 +315,7 @@ defmodule Decanter.Pipeline do
   def wrap_entity(conn, entity) do
     case entity do
       %Plug.Conn{} -> entity
-      body -> Plug.Conn.resp(conn, conn.status, body)
+      body -> Plug.Conn.resp(conn, 200, body)
     end
   end
 end
