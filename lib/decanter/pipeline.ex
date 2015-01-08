@@ -25,7 +25,7 @@ defmodule Decanter.Pipeline.Builder do
 
     filter_chain = Enum.reduce Enum.reverse(pipeline.filters), dispatcher, &build_filter(&1, &2)
 
-    IO.puts Macro.to_string(filter_chain)
+    # IO.puts Macro.to_string(filter_chain)
     filter_chain
   end
 
@@ -175,7 +175,7 @@ defmodule Decanter.Pipeline.Builder do
 
   defp build_negotiate({:media_type, available}, acc) do
     quote do
-      case ConNeg.negotiate(:media_type,
+      case Decanter.ConnectionNegotiator.negotiate(:media_type,
                             var!(conn).assigns.headers["accept"] || "*/*",
                             unquote(available)) do
         nil -> handle_not_acceptable(var!(conn)) # bail out
@@ -187,7 +187,7 @@ defmodule Decanter.Pipeline.Builder do
   end
   defp build_negotiate({:charset, available}, acc) do
     quote do
-      case ConNeg.negotiate(:charset,
+      case Decanter.ConnectionNegotiator.negotiate(:charset,
                             var!(conn).assigns.headers["accept-charset"] || "*",
                             unquote(available)) do
         nil -> handle_not_acceptable(var!(conn)) # bail out
@@ -240,13 +240,7 @@ defmodule Decanter.Pipeline do
 
       for {name, status, body} <- handlers do
         def unquote(name)(conn) do
-          if conn.resp_body do
-            conn
-            |> Plug.Conn.put_status(unquote(status))
-            |> Plug.Conn.send_resp
-          else
-            Plug.Conn.send_resp(conn, unquote(status), unquote(body))
-          end
+          Plug.Conn.send_resp(conn, unquote(status), conn.assigns[:entity] || unquote(body))
         end
 
         defoverridable [{name, 1}]
@@ -364,7 +358,7 @@ defmodule Decanter.Pipeline.Utils do
   end
   defp postprocess(%{etag: etag}=assigns, conn, vary) when not is_nil(etag) do
     postprocess(Map.delete(assigns, :etag),
-                put_resp_header(conn, "ETag", format_etag(etag)),
+                put_resp_header(conn, "ETag", etag),
                 vary)
   end
   defp postprocess(%{last_modified: last_modified}=assigns, conn, vary) when not is_nil(last_modified) do
@@ -391,9 +385,11 @@ defmodule Decanter.Pipeline.Utils do
   # Cache Checking
 
   def cache_check(conn, headers, last_modified, etag) do
+    etag = format_etag(etag)
+
     conn = conn
-           |> Plug.Conn.assign(conn, :etag, etag)
-           |> Plug.Conn.assign(conn, :last_modified, last_modified)
+           |> Plug.Conn.assign(:etag, etag)
+           |> Plug.Conn.assign(:last_modified, last_modified)
 
     status = case cache_check_ifmatch(headers, etag) do
       :ok ->
