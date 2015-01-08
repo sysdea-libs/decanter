@@ -25,7 +25,7 @@ defmodule Decanter.Pipeline.Builder do
 
     filter_chain = Enum.reduce Enum.reverse(pipeline.filters), dispatcher, &build_filter(&1, &2)
 
-    # IO.puts Macro.to_string(filter_chain)
+    IO.puts Macro.to_string(filter_chain)
     filter_chain
   end
 
@@ -173,27 +173,11 @@ defmodule Decanter.Pipeline.Builder do
     end
   end
 
-  defp build_negotiate({:media_type, available}, acc) do
+  defp build_negotiate({type, available}, acc) do
     quote do
-      case Decanter.ConnectionNegotiator.negotiate(:media_type,
-                            var!(conn).assigns.headers["accept"] || "*/*",
-                            unquote(available)) do
-        nil -> handle_not_acceptable(var!(conn)) # bail out
-        media_type ->
-          var!(conn) = assign(var!(conn), :media_type, media_type)
-          unquote(acc)
-      end
-    end
-  end
-  defp build_negotiate({:charset, available}, acc) do
-    quote do
-      case Decanter.ConnectionNegotiator.negotiate(:charset,
-                            var!(conn).assigns.headers["accept-charset"] || "*",
-                            unquote(available)) do
-        nil -> handle_not_acceptable(var!(conn)) # bail out
-        charset ->
-          var!(conn) = assign(var!(conn), :charset, charset)
-          unquote(acc)
+      case Decanter.Pipeline.Utils.negotiate(unquote(type), var!(conn), unquote(available)) do
+        {:ok, var!(conn)} -> unquote(acc)
+        {:not_acceptable, conn} -> handle_not_acceptable(conn)
       end
     end
   end
@@ -451,6 +435,36 @@ defmodule Decanter.Pipeline.Utils do
           :bad_date -> :ok
           ^last_modified -> :not_modified
           _ -> :ok
+        end
+    end
+  end
+
+  def negotiate(:media_type, conn, available) do
+    case Decanter.ConnectionNegotiator.negotiate(
+          :media_type, conn.assigns.headers["accept"] || "*/*", available) do
+      nil -> {:not_acceptable, conn}
+      media_type -> {:ok, assign(conn, :media_type, media_type)}
+    end
+  end
+
+  def negotiate(:charset, conn, available) do
+    case conn.assigns.headers["accept-charset"] do
+      nil -> {:ok, conn}
+      header ->
+        case Decanter.ConnectionNegotiator.negotiate(:charset, header, available) do
+          nil -> {:not_acceptable, conn}
+          charset -> {:ok, assign(conn, :charset, charset)}
+        end
+    end
+  end
+
+  def negotiate(:language, conn, available) do
+    case conn.assigns.headers["accept-language"] do
+      nil -> {:ok, conn}
+      header ->
+        case Decanter.ConnectionNegotiator.negotiate(:language, header, available) do
+          nil -> {:not_acceptable, conn}
+          language -> {:ok, assign(conn, :language, language)}
         end
     end
   end

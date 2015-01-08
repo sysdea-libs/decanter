@@ -7,7 +7,8 @@ defmodule PostGetPipelineTest.R do
 
   decanter :start do
     negotiate media_type: ["text/html", "application/json"],
-              charset: ["utf-8"]
+              charset: ["utf-8"],
+              language: ["*"]
 
     property :entity
     property :last_modified
