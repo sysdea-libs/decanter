@@ -1,76 +1,78 @@
-defmodule PostGetTest.R do
-  use Decanter
+defmodule PostGetPipelineTest.R do
+  use Decanter.Pipeline
+  import Decanter.Pipeline
+  import Plug.Conn
 
-  plug :serve
+  plug :decant
+
+  decanter :start do
+    negotiate media_type: ["text/html", "application/json"],
+              charset: ["utf-8"],
+              language: ["*"]
+
+    property :entity
+    property :last_modified
+    property :etag
+
+    method :get
+    method :post
+  end
 
   def etag(_conn) do
     1635
-  end
-
-  def available_media_types(_), do: ["text/html", "application/json"]
-
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "text/html"}}=conn) do
-    send_resp(conn, "HELLO")
-  end
-
-  def handle_ok(%Plug.Conn{assigns: %{media_type: "application/json"}}=conn) do
-    send_resp(conn, ~s({"message": "HELLO"}))
   end
 
   def last_modified(_conn) do
     {{2014, 12, 13}, {11, 36, 32}}
   end
 
-  def exists?(_), do: true
-
-  decide :respond_with_entity?, do: true
-  decide :new?, do: false
+  def entity(%{assigns: %{media_type: "text/html"}}) do
+    "HELLO"
+  end
+  def entity(%{assigns: %{media_type: "application/json"}}) do
+    ~s({"message": "HELLO"})
+  end
 
   def post(conn) do
     conn
   end
 end
 
-defmodule PostGetTest do
+defmodule PostGetPipelineTest do
   use DecanterTest
 
   test "basics" do
     assert %{status: 200,
              resp_body: "HELLO"}
-           = request(PostGetTest.R, :get, %{})
+           = request(PostGetPipelineTest.R, :get, %{})
 
     assert %{status: 200,
              resp_body: "HELLO"}
-           = request(PostGetTest.R, :post, %{})
+           = request(PostGetPipelineTest.R, :post, %{})
   end
 
   test "methods (405/options)" do
     assert %{status: 405,
              resp_body: "Method not allowed.",
-             resp_headers: %{"Allow" => "POST,GET,OPTIONS"}}
-           = request(PostGetTest.R, :patch, %{})
+             resp_headers: %{"Allow" => "GET,OPTIONS,POST"}}
+           = request(PostGetPipelineTest.R, :patch, %{})
 
     assert %{status: 200,
              resp_body: "",
-             resp_headers: %{"Allow" => "POST,GET,OPTIONS"}}
-           = request(PostGetTest.R, :options, %{})
+             resp_headers: %{"Allow" => "GET,OPTIONS,POST"}}
+           = request(PostGetPipelineTest.R, :options, %{})
   end
 
   test "vary" do
     assert %{status: 200,
              resp_body: "HELLO",
              resp_headers: %{"Vary" => "Accept"}}
-           = request(PostGetTest.R, :get, %{})
-
-    assert %{status: 200,
-             resp_body: "HELLO",
-             resp_headers: %{"Vary" => "Accept-Encoding,Accept"}}
-           = request(PostGetTest.R, :get, %{"accept-encoding" => "identity"})
+           = request(PostGetPipelineTest.R, :get, %{})
 
     assert %{status: 200,
              resp_body: "HELLO",
              resp_headers: %{"Vary" => "Accept-Language,Accept"}}
-           = request(PostGetTest.R, :get, %{"accept-language" => "en"})
+           = request(PostGetPipelineTest.R, :get, %{"accept-language" => "en"})
   end
 
   test "accept/charset" do
@@ -79,7 +81,7 @@ defmodule PostGetTest do
              resp_headers: %{"ETag" => ~s("1635"),
                              "Content-Type" => "text/html;charset=utf-8",
                              "Vary" => "Accept-Charset,Accept"}}
-           = request(PostGetTest.R, :get,
+           = request(PostGetPipelineTest.R, :get,
                      %{"accept" => "text/*",
                        "accept-charset" => "utf-8"})
 
@@ -88,7 +90,7 @@ defmodule PostGetTest do
              resp_headers: %{"ETag" => ~s("1635"),
                              "Content-Type" => "text/html;charset=utf-8",
                              "Vary" => "Accept-Charset,Accept"}}
-           = request(PostGetTest.R, :get,
+           = request(PostGetPipelineTest.R, :get,
                      %{"accept" => "text/html",
                        "accept-charset" => "utf-8"})
 
@@ -97,47 +99,47 @@ defmodule PostGetTest do
              resp_headers: %{"ETag" => ~s("1635"),
                              "Content-Type" => "application/json;charset=utf-8",
                              "Vary" => "Accept-Charset,Accept"}}
-           = request(PostGetTest.R, :get,
+           = request(PostGetPipelineTest.R, :get,
                      %{"accept" => "application/json",
                        "accept-charset" => "utf-8"})
 
     assert %{status: 406,
              resp_body: "No acceptable resource available."}
-           = request(PostGetTest.R, :get, %{"accept" => "text/xml"})
+           = request(PostGetPipelineTest.R, :get, %{"accept" => "text/xml"})
 
     assert %{status: 406,
              resp_body: "No acceptable resource available."}
-           = request(PostGetTest.R, :get, %{"accept-charset" => "utf-919"})
+           = request(PostGetPipelineTest.R, :get, %{"accept-charset" => "utf-919"})
   end
 
   test "last_modified" do
     assert %{status: 200,
              resp_headers: %{"ETag" => ~s("1635"),
                              "Last-Modified" => "Sat, 13 Dec 2014 11:36:32 GMT"}}
-          = request(PostGetTest.R, :get, %{})
+          = request(PostGetPipelineTest.R, :get, %{})
 
     assert %{status: 304,
              resp_body: "",
              resp_headers: %{"ETag" => ~s("1635"),
                              "Last-Modified" => "Sat, 13 Dec 2014 11:36:32 GMT"}}
-          = request(PostGetTest.R, :get,
+          = request(PostGetPipelineTest.R, :get,
                     %{"if-modified-since" => "Sat, 13 Dec 2014 11:36:32 GMT"})
 
     assert %{status: 200,
              resp_body: "HELLO",
              resp_headers: %{"ETag" => ~s("1635"),
                              "Last-Modified" => "Sat, 13 Dec 2014 11:36:32 GMT"}}
-          = request(PostGetTest.R, :get,
+          = request(PostGetPipelineTest.R, :get,
                     %{"if-modified-since" => "Sat, 13 Dec 2014 11:36:00 GMT"})
   end
 
   test "etags" do
     assert %{status: 304,
              resp_body: ""}
-           = request(PostGetTest.R, :get, %{"if-none-match" => ~s("1635")})
+           = request(PostGetPipelineTest.R, :get, %{"if-none-match" => ~s("1635")})
 
     assert %{status: 200,
              resp_body: "HELLO"}
-           = request(PostGetTest.R, :get, %{"if-none-match" => ~s("1636")})
+           = request(PostGetPipelineTest.R, :get, %{"if-none-match" => ~s("1636")})
   end
 end
