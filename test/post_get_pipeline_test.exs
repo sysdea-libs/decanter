@@ -54,12 +54,12 @@ defmodule PostGetPipelineTest do
   test "methods (405/options)" do
     assert %{status: 405,
              resp_body: "Method not allowed.",
-             resp_headers: %{"Allow" => "POST,GET,OPTIONS"}}
+             resp_headers: %{"Allow" => "GET,POST"}}
            = request(PostGetPipelineTest.R, :patch, %{})
 
     assert %{status: 200,
              resp_body: "",
-             resp_headers: %{"Allow" => "POST,GET,OPTIONS"}}
+             resp_headers: %{"Allow" => "GET,POST,OPTIONS"}}
            = request(PostGetPipelineTest.R, :options, %{})
   end
 
