@@ -247,13 +247,11 @@ defmodule UserResource do
   def etag(_conn), do: 1635
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
-  # Decision points
-  decide :allowed? do
+  # Filter method implementations
+  def :allowed?(conn) do
     Map.has_key?(get_session(conn), :user)
   end
 
-  # The `decide` macro inlines the tests and can optimise away constants.
-  # Longer decisions can be defined normally to support pattern matching on the conn.
   def exists?(conn) do
     # Would defer to something like Plug.Router ordinarily
     ["user", id] = conn.path_info
@@ -263,7 +261,7 @@ defmodule UserResource do
     end
   end
 
-  # Handlers
+  # Entity representation
   def show(%{assigns: %{media_type: "text/html"}}=conn) do
     "<h1>#{conn.assigns.user}</h1>"
   end
