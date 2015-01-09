@@ -1,10 +1,16 @@
 # Decanter
 
-Decanter is a [Liberator](http://clojure-liberator.github.io/liberator/)/[webmachine](https://github.com/basho/webmachine)-style library in Elixir for exposing resources through a RESTful interface, on top of Plug. It's built on top of a dynamically built decision graph, allowing for ellision of fixed decisions, and customisation of the default HTTP decision graph. This allows it to be used on its own under Plug, or fit inside a larger framework such as Phoenix.
+Decanter is an experiment in exposing resources in Elixir using Plug. It currently contains two alternate approaches.
+
+The first is a [Liberator](http://clojure-liberator.github.io/liberator/)/[webmachine](https://github.com/basho/webmachine)-style library in Elixir for exposing resources through a RESTful interface, on top of Plug. It's built on top of a dynamically built decision graph, allowing for ellision of fixed decisions, and customisation of the default HTTP decision graph. This allows it to be used on its own under Plug, or fit inside a larger framework such as Phoenix.
+
+The second is a more Plug-like pipeline style approach that allows a clearer declaration of the flow of a request, at the expense of more easily allowing a badly behaving resource from the perspective of REST.
 
 ## Status
 
-Highly Experimental. Has not yet been used outside of basic testing, the API is still highly in flux.
+Highly Experimental. Has only been used internally with limited deployment, the API is still highly in flux.
+
+# Liberator Style
 
 ## Example
 
@@ -201,6 +207,73 @@ defmodule MyUserDecanter do
   end
 
   # ...
+end
+```
+
+# Pipeline Style
+
+## Example
+
+```elixir
+defmodule UserResource do
+  use Decanter.Pipeline
+  import Decanter.Pipeline
+
+  # The decanter is called with :start for a new connection
+  decanter :start do
+    # Plugs, negotiations, and filters can be ordered to process a request
+    plug :fetch_session
+    negotiate media_type: ["text/html", "application/json"]
+    filter :exists?
+    filter :allowed?
+
+    # etag/last_modified properties are checked after filters for caching/header population
+    property :etag
+    property :last_modified
+    # the entity property is used when a representation is needed
+    property :entity, fn: :show
+
+    # Method declarations allow response behaviour configuration
+    method :get
+    method :put, send_entity: true
+  end
+
+  # Stub collection
+  @my_values %{"chris": "Chris Spencer",
+               "ben": "Ben Smith"}
+
+  # Resource properties
+  def etag(_conn), do: 1635
+  def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
+
+  # Decision points
+  decide :allowed? do
+    Map.has_key?(get_session(conn), :user)
+  end
+
+  # The `decide` macro inlines the tests and can optimise away constants.
+  # Longer decisions can be defined normally to support pattern matching on the conn.
+  def exists?(conn) do
+    # Would defer to something like Plug.Router ordinarily
+    ["user", id] = conn.path_info
+    case @my_values[id] do
+      nil -> false
+      user -> {true, assign(conn, :user, user)}
+    end
+  end
+
+  # Handlers
+  def show(%{assigns: %{media_type: "text/html"}}=conn) do
+    "<h1>#{conn.assigns.user}</h1>"
+  end
+  def show(%{assigns: %{media_type: "application/json"}}=conn) do
+    ~s({"name": "#{conn.assigns.user}"})
+  end
+
+  # Actions
+  def put(conn) do
+    # MyRepo.update(@my_values ...)
+  end
 end
 ```
 
