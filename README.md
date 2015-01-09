@@ -218,6 +218,7 @@ end
 defmodule UserResource do
   use Decanter.Pipeline
   import Decanter.Pipeline
+  import Plug.Conn
 
   # The decanter is called with :start for a new connection
   decanter :start do
