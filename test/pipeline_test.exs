@@ -23,8 +23,6 @@ defmodule PipelineTest.R do
   @dummy_sessions %{"s1" => %{id: 1, admin: true},
                     "s2" => %{id: 2, admin: false}}
 
-  plug :decant
-
   decanter :start do
     negotiate media_type: ["text/html", "application/json"],
                  charset: ["utf-8"]

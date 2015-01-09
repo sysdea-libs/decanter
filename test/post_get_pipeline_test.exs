@@ -1,9 +1,6 @@
 defmodule PostGetPipelineTest.R do
   use Decanter.Pipeline
   import Decanter.Pipeline
-  import Plug.Conn
-
-  plug :decant
 
   decanter :start do
     negotiate media_type: ["text/html", "application/json"],

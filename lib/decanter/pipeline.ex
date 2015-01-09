@@ -239,8 +239,6 @@ defmodule Decanter.Pipeline do
     handlers = Macro.escape @handlers
 
     quote bind_quoted: binding do
-      use Plug.Builder
-
       for {name, status, body} <- handlers do
         def unquote(name)(conn) do
           case conn.resp_body do
@@ -256,11 +254,11 @@ defmodule Decanter.Pipeline do
         defoverridable [{name, 1}]
       end
 
-      def decant(conn, _opts) do
-        conn = register_before_send conn, &Decanter.Pipeline.Utils.postprocess/1
+      def call(conn, _opts) do
+        conn = Plug.Conn.register_before_send conn, &Decanter.Pipeline.Utils.postprocess/1
 
         do_decant(:start, conn
-                          |> assign(:headers, Enum.into(conn.req_headers, %{})))
+                          |> Plug.Conn.assign(:headers, Enum.into(conn.req_headers, %{})))
       end
     end
   end
