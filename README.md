@@ -248,7 +248,7 @@ defmodule UserResource do
   def last_modified(_conn), do: {{2014, 12, 13}, {11, 36, 32}}
 
   # Filter method implementations
-  def :allowed?(conn) do
+  def allowed?(conn) do
     Map.has_key?(get_session(conn), :user)
   end
 
