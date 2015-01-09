@@ -24,6 +24,7 @@ defmodule PipelineTest.R do
                     "s2" => %{id: 2, admin: false}}
 
   decanter :start do
+    plug Plug.MethodOverride
     negotiate media_type: ["text/html", "application/json"],
                  charset: ["utf-8"]
     decant conn.assigns.media_type
@@ -107,6 +108,12 @@ defmodule PipelineTest do
     assert %{status: 405,
              resp_body: "Method not allowed."}
            = testreq(PipelineTest.R, :post)
+  end
+
+  test "plugs" do
+    assert %{method: "PATCH"}
+           = testreq(PipelineTest.R, :post,
+              params: %{"_method" => "PATCH"})
   end
 
   test "json" do

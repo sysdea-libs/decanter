@@ -51,7 +51,7 @@ defmodule Decanter.Pipeline.Builder do
         |> handle_ok
     end
   end
-  defp build_verb(:delete, props, opts) do
+  defp build_verb(:delete, _props, opts) do
     delete = build_accessor(:delete, opts)
 
     quote do
@@ -156,6 +156,9 @@ defmodule Decanter.Pipeline.Builder do
   defp build_pipeline({:negotiate, opts}, pipeline) do
     %{pipeline | filters: [{:negotiate, opts}|pipeline.filters]}
   end
+  defp build_pipeline({:plug, name, opts}, pipeline) do
+    %{pipeline | filters: [{:plug, name, opts}|pipeline.filters]}
+  end
 
   defp build_filter({:filter, name, opts}, acc) do
     f = opts[:fn] || name
@@ -167,10 +170,63 @@ defmodule Decanter.Pipeline.Builder do
       end
     end
   end
-
   defp build_filter({:negotiate, opts}, acc) do
     Enum.reduce opts, acc, &build_negotiate(&1, &2)
   end
+  defp build_filter({:plug, name, opts}, acc) do
+    quote_plug(init_plug({name, opts}), acc)
+  end
+
+  # Copied from Plug.Builder
+
+  defp init_plug({plug, opts}) do
+    case Atom.to_char_list(plug) do
+      'Elixir.' ++ _ ->
+        init_module_plug(plug, opts)
+      _ ->
+        init_fun_plug(plug, opts)
+    end
+  end
+
+  defp init_module_plug(plug, opts) do
+    opts = plug.init(opts)
+
+    if function_exported?(plug, :call, 2) do
+      {:call, plug, opts}
+    else
+      raise ArgumentError, message: "#{inspect plug} plug must implement call/2"
+    end
+  end
+
+  defp init_fun_plug(plug, opts) do
+    {:fun, plug, opts}
+  end
+
+  defp quote_plug({:call, plug, opts}, acc) do
+    call = quote do: unquote(plug).call(var!(conn), unquote(Macro.escape(opts)))
+
+    quote do
+      case unquote(call) do
+        %Plug.Conn{halted: true} = conn -> conn
+        %Plug.Conn{} = var!(conn)       -> unquote(acc)
+        _ -> raise "expected #{unquote(inspect plug)}.call/2 to return a Plug.Conn"
+      end
+    end
+  end
+
+  defp quote_plug({:fun, plug, opts}, acc) do
+    call = quote do: unquote(plug)(var!(conn), unquote(Macro.escape(opts)))
+
+    quote do
+      case unquote(call) do
+        %Plug.Conn{halted: true} = conn -> conn
+        %Plug.Conn{} = var!(conn)       -> unquote(acc)
+        _ -> raise "expected #{unquote(plug)}/2 to return a Plug.Conn"
+      end
+    end
+  end
+
+  # End Copy
 
   defp build_cache_check(props, acc) do
     last_modified = case props[:last_modified] do
@@ -201,6 +257,7 @@ defmodule Decanter.Pipeline.Builder do
     end
   end
 end
+
 
 defmodule Decanter.Pipeline do
 
@@ -307,6 +364,9 @@ defmodule Decanter.Pipeline do
   defmacro method(name, opts \\ []) do
     quote do: Decanter.Pipeline.decanter_property(:method, unquote(name), unquote(opts))
   end
+  defmacro plug(name, opts \\ []) do
+    quote do: Decanter.Pipeline.decanter_property(:plug, unquote(name), unquote(opts))
+  end
 
   # Helper wrappers
 
@@ -324,6 +384,7 @@ defmodule Decanter.Pipeline do
     end
   end
 end
+
 
 defmodule Decanter.Pipeline.Utils do
   import Plug.Conn
