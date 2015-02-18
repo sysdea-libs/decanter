@@ -12,6 +12,9 @@ defmodule Decanter.Pipeline.Utils do
                    put_resp_header(conn, "Content-Type", "#{media_type};charset=#{charset}"),
                    ["Accept-Charset","Accept"|vary])
   end
+  defp postprocess(%{media_type: media_type}=assigns, %{status: 204}=conn, vary) do
+    postprocess(Map.delete(assigns, :media_type), conn, vary)
+  end
   defp postprocess(%{media_type: media_type}=assigns, conn, vary) do
     postprocess(Map.delete(assigns, :media_type),
                    put_resp_header(conn, "Content-Type", media_type),
